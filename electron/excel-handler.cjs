@@ -17,7 +17,7 @@ function recordUndo(filePath) {
   }
 }
 
-function readExcel(filePath) {
+function readExcel(filePath, targetSheetName) {
   if (!fs.existsSync(filePath)) {
     latestRowsCache = [];
     return { headers: [], rows: [], sheetNames: [], success: false, error: "File not found. Please select an existing Excel file." };
@@ -25,9 +25,11 @@ function readExcel(filePath) {
   try {
     const workbook = XLSX.readFile(filePath);
     const sheetNames = workbook.SheetNames;
-    const sheetName = currentSheetNameCache && sheetNames.includes(currentSheetNameCache) 
-        ? currentSheetNameCache 
-        : sheetNames[0];
+    const sheetName = targetSheetName && sheetNames.includes(targetSheetName)
+        ? targetSheetName
+        : (currentSheetNameCache && sheetNames.includes(currentSheetNameCache) 
+            ? currentSheetNameCache 
+            : sheetNames[0]);
     
     currentSheetNameCache = sheetName;
     const sheet = workbook.Sheets[sheetName];
@@ -50,6 +52,7 @@ function updateExcel(filePath, barcode, columnConfig, sheetName = 'Sheet1') {
     const barcodeCol = columnConfig.barcodeColumn || 'Barcode';
     const qtyCol     = columnConfig.quantityColumn || 'Quantity';
     const tsCol      = columnConfig.timestampColumn || 'Last Scanned';
+    const extraCols  = columnConfig.extraColumns || [];
 
     currentSheetNameCache = sheetName;
 
@@ -78,16 +81,29 @@ function updateExcel(filePath, barcode, columnConfig, sheetName = 'Sheet1') {
     if (existingIndex >= 0) {
       rows[existingIndex][qtyCol] = (rows[existingIndex][qtyCol] || 0) + 1;
       rows[existingIndex][tsCol]  = new Date().toLocaleString();
+      for (const extra of extraCols) {
+        if (extra.name) {
+          rows[existingIndex][extra.name] = extra.defaultValue || '';
+        }
+      }
       isDuplicate = true;
     } else {
-      rows.push({
+      const newObj = {
         [barcodeCol]: barcode,
         [qtyCol]:     1,
         [tsCol]:      new Date().toLocaleString(),
-      });
+      };
+      
+      for (const extra of extraCols) {
+        if (extra.name) {
+          newObj[extra.name] = extra.defaultValue || '';
+        }
+      }
+
+      rows.push(newObj);
     }
 
-    const newSheet = XLSX.utils.json_to_sheet(rows);
+    const newSheet = XLSX.utils.json_to_sheet(rows, columnConfig.columnsOrder ? { header: columnConfig.columnsOrder } : {});
 
     if (workbook.SheetNames.length === 0) {
       XLSX.utils.book_append_sheet(workbook, newSheet, sheetName);
@@ -98,7 +114,16 @@ function updateExcel(filePath, barcode, columnConfig, sheetName = 'Sheet1') {
     XLSX.writeFile(workbook, filePath);
     latestRowsCache = rows;
     
-    return { success: true, rows, isDuplicate, sheetNames: workbook.SheetNames };
+    // Ensure that even if a file was previously empty, we return all keys nicely padded so the UI can draw all table columns
+    let updatedHeaders = [];
+    if (rows.length > 0) {
+        // Collect all unique keys from all rows to ensure extra columns appear
+        const keySet = new Set();
+        rows.forEach(r => Object.keys(r).forEach(k => keySet.add(k)));
+        updatedHeaders = Array.from(keySet);
+    }
+    
+    return { success: true, rows, isDuplicate, sheetNames: workbook.SheetNames, headers: updatedHeaders };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -146,4 +171,36 @@ function exportToCSV() {
   return csvRows.join('\n');
 }
 
-module.exports = { readExcel, updateExcel, undoLastScan, redoLastScan, exportToCSV };
+function rewriteExcel(filePath, sheetName, rows, columnsOrder) {
+  try {
+    if (!fs.existsSync(filePath)) return { success: false, error: "File not found." };
+    const workbook = XLSX.readFile(filePath);
+    redoStack = []; // Clear redo stack on structural edit
+    recordUndo(filePath);
+    
+    // Process new columns to ensure defaults appear in all existing rows if they are missing
+    let finalRows = rows;
+    if (columnsOrder) {
+       finalRows = rows.map(r => {
+           const newR = { ...r };
+           // missing keys will be written by json_to_sheet because of `{ header: columnsOrder }`
+           return newR;
+       });
+    }
+
+    const newSheet = XLSX.utils.json_to_sheet(finalRows, columnsOrder ? { header: columnsOrder } : {});
+    if (!workbook.Sheets[sheetName]) {
+      XLSX.utils.book_append_sheet(workbook, newSheet, sheetName);
+    } else {
+      workbook.Sheets[sheetName] = newSheet;
+    }
+    
+    XLSX.writeFile(workbook, filePath);
+    latestRowsCache = finalRows;
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+module.exports = { readExcel, updateExcel, undoLastScan, redoLastScan, exportToCSV, rewriteExcel };

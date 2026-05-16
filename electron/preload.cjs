@@ -1,11 +1,14 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  readExcel: (filePath) =>
-    ipcRenderer.invoke('excel:read', filePath),
+  readExcel: (filePath, sheetName) =>
+    ipcRenderer.invoke('excel:read', { filePath, sheetName }),
 
   updateExcel: (payload) =>
     ipcRenderer.invoke('excel:update', payload),
+
+  rewriteExcel: (payload) =>
+    ipcRenderer.invoke('excel:rewrite', payload),
 
   undoScan: (filePath) =>
     ipcRenderer.invoke('excel:undo', filePath),

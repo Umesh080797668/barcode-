@@ -6,10 +6,32 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "build:exe": "vite build && electron-builder -w",
+    "build:linux": "vite build && electron-builder -l",
     "build": "vite build && electron-builder",
     "start": "electron .",
     "lint": "eslint .",
     "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.scanvault.app",
+    "productName": "ScanVault",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "ScanVault.exe"
+    }
   },
   "dependencies": {
     "react": "^19.2.6",

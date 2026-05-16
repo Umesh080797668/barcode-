@@ -7,8 +7,12 @@ let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1280,
+    height: 820,
+    minWidth: 900,
+    minHeight: 600,
+    title: 'ScanVault',
+    backgroundColor: '#0d0e11',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -17,12 +21,11 @@ function createWindow() {
   });
 
   // Dev: load Vite dev server | Production: load built files
-  const isDev = process.env.NODE_ENV !== 'production';
-  mainWindow.loadURL(
-    isDev
-      ? 'http://localhost:5173'
-      : `file://${path.join(__dirname, '../dist/index.html')}`
-  );
+  if (app.isPackaged) {
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+  } else {
+    mainWindow.loadURL('http://localhost:5173');
+  }
 }
 
 app.whenReady().then(createWindow);
@@ -32,13 +35,21 @@ app.on('window-all-closed', () => {
 });
 
 // IPC: Read Excel file
-ipcMain.handle('excel:read', async (_, filePath) => {
-  return excelHandler.readExcel(filePath);
+ipcMain.handle('excel:read', async (_, payload) => {
+  if (typeof payload === 'string') {
+    return excelHandler.readExcel(payload);
+  }
+  return excelHandler.readExcel(payload.filePath, payload.sheetName);
 });
 
 // IPC: Process a scanned barcode → update Excel
 ipcMain.handle('excel:update', async (_, { filePath, barcode, columnConfig, sheetName }) => {
   return excelHandler.updateExcel(filePath, barcode, columnConfig, sheetName);
+});
+
+// IPC: Rewrite sheet for structure changes (column rename)
+ipcMain.handle('excel:rewrite', async (_, { filePath, sheetName, rows, columnsOrder }) => {
+  return excelHandler.rewriteExcel(filePath, sheetName, rows, columnsOrder);
 });
 
 // IPC: Undo last scan
