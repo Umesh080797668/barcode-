@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
+import ScanVaultTutorial from './ScanVaultTutorial';
 
 export default function App() {
   const [filePath, setFilePath] = useState('');
@@ -224,6 +225,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${scanFlash ? `flash-${scanFlash}` : ''}`}>
+      <ScanVaultTutorial />
       {/* Top Bar */}
       <header className="topbar">
         <div className="topbar-brand">
