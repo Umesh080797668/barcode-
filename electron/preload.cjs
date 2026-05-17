@@ -20,5 +20,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('excel:exportCSV', filePath),
 
   selectFile: () =>
-    ipcRenderer.invoke('dialog:selectFile')
+    ipcRenderer.invoke('dialog:selectFile'),
+
+  // ── Barcode Generator / Product DB ───────────────────────────────────────
+  generateBarcode:     ()        => ipcRenderer.invoke('barcode:generate'),
+  getProducts:         (opts)    => ipcRenderer.invoke('barcode:getProducts', opts),
+  getProduct:          (barcode) => ipcRenderer.invoke('barcode:getProduct', barcode),
+  saveProduct:         (product) => ipcRenderer.invoke('barcode:saveProduct', product),
+  deleteProduct:       (id)      => ipcRenderer.invoke('barcode:deleteProduct', id),
+  getBarcodeStats:     ()        => ipcRenderer.invoke('barcode:getStats'),
+  getCustomFields:     ()        => ipcRenderer.invoke('barcode:getCustomFields'),
+  saveCustomField:     (field)   => ipcRenderer.invoke('barcode:saveCustomField', field),
+  deleteCustomField:   (id)      => ipcRenderer.invoke('barcode:deleteCustomField', id),
 });

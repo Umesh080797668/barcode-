@@ -11,11 +11,13 @@
     "build": "vite build && electron-builder",
     "start": "electron .",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "electron-builder install-app-deps"
   },
   "build": {
     "appId": "com.scanvault.app",
     "productName": "ScanVault",
+    "asar": true,
     "directories": {
       "output": "dist-electron"
     },
@@ -24,6 +26,8 @@
       "electron/**/*",
       "package.json"
     ],
+    "extraResources": [],
+    "nativeRebuilder": "legacy",
     "win": {
       "target": [
         "portable"
@@ -36,6 +40,7 @@
   "dependencies": {
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "sql.js": "^1.14.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

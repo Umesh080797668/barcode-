@@ -1,9 +1,11 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const excelHandler = require('./excel-handler.cjs');
+const BarcodeDB    = require('./barcode-db.cjs');
 const fs = require('fs');
 
 let mainWindow;
+let barcodeDB;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -28,7 +30,10 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  barcodeDB = new BarcodeDB(app);
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -99,4 +104,50 @@ ipcMain.handle('excel:exportCSV', async (_, filePath) => {
   } catch (err) {
     return { success: false, error: err.message };
   }
+});
+
+// ── Barcode Generator / Product DB IPC ──────────────────────────────────────
+
+ipcMain.handle('barcode:generate', async () => {
+  return { barcode: barcodeDB.generateBarcodeNumber() };
+});
+
+ipcMain.handle('barcode:getProducts', async (_, opts) => {
+  try { return { success: true, products: await barcodeDB.getProducts(opts) }; }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('barcode:getProduct', async (_, barcode) => {
+  try { return { success: true, product: await barcodeDB.getProduct(barcode) }; }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('barcode:saveProduct', async (_, product) => {
+  try { return await barcodeDB.saveProduct(product); }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('barcode:deleteProduct', async (_, id) => {
+  try { return await barcodeDB.deleteProduct(id); }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('barcode:getStats', async () => {
+  try { return { success: true, ...(await barcodeDB.getStats()) }; }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('barcode:getCustomFields', async () => {
+  try { return { success: true, fields: await barcodeDB.getCustomFields() }; }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('barcode:saveCustomField', async (_, field) => {
+  try { return await barcodeDB.saveCustomField(field); }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('barcode:deleteCustomField', async (_, id) => {
+  try { return await barcodeDB.deleteCustomField(id); }
+  catch (e) { return { success: false, error: e.message }; }
 });
