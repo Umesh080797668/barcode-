@@ -22,6 +22,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectFile: () =>
     ipcRenderer.invoke('dialog:selectFile'),
 
+  // ── Billing ───────────────────────────────────────────────────────────────────
+  saveInvoice: (invoice) => 
+    ipcRenderer.invoke('invoice:save', invoice),
+
+  getInvoices: (limit) => 
+    ipcRenderer.invoke('invoice:getAll', limit),
+
+  getInvoice: (invoiceNo) => 
+    ipcRenderer.invoke('invoice:get', invoiceNo),
+
+  deleteInvoice: (invoiceNo) => 
+    ipcRenderer.invoke('invoice:delete', invoiceNo),
+
+// ── Printer ───────────────────────────────────────────────────────────────────
+  listPrinters: () => 
+    ipcRenderer.invoke('printer:list'),
+
+  printReceipt: (payload) => 
+    ipcRenderer.invoke('printer:print', payload),
+
+// ── Shop Settings ─────────────────────────────────────────────────────────────
+  getShopConfig: () => 
+    ipcRenderer.invoke('settings:getShop'),
+  
+  saveShopConfig: (config) => 
+    ipcRenderer.invoke('settings:saveShop', config),
+
   // ── Barcode Generator / Product DB ───────────────────────────────────────
   generateBarcode:     ()        => ipcRenderer.invoke('barcode:generate'),
   getProducts:         (opts)    => ipcRenderer.invoke('barcode:getProducts', opts),
@@ -32,4 +59,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCustomFields:     ()        => ipcRenderer.invoke('barcode:getCustomFields'),
   saveCustomField:     (field)   => ipcRenderer.invoke('barcode:saveCustomField', field),
   deleteCustomField:   (id)      => ipcRenderer.invoke('barcode:deleteCustomField', id),
+  applyStockChanges:   (payload) => ipcRenderer.invoke('invoice:applyStockChanges', payload),
 });

@@ -47,7 +47,7 @@ function readExcel(filePath, targetSheetName) {
   }
 }
 
-function updateExcel(filePath, barcode, columnConfig, sheetName = 'Sheet1') {
+function updateExcel(filePath, barcode, columnConfig, sheetName = 'Sheet1', product = null) {
   try {
     const barcodeCol = columnConfig.barcodeColumn || 'Barcode';
     const qtyCol     = columnConfig.quantityColumn || 'Quantity';
@@ -79,8 +79,16 @@ function updateExcel(filePath, barcode, columnConfig, sheetName = 'Sheet1') {
     let isDuplicate = false;
 
     if (existingIndex >= 0) {
+      // If this barcode exists in the product DB, treat re-adding as an error to avoid
+      // duplicate rows and inconsistent quantities between barcode DB and Excel.
+      if (product) {
+        return { success: false, error: 'Product already exists in inventory' }; 
+      }
+
+      // For unknown products (no product metadata), keep legacy behavior of incrementing quantity
       rows[existingIndex][qtyCol] = (rows[existingIndex][qtyCol] || 0) + 1;
       rows[existingIndex][tsCol]  = new Date().toLocaleString();
+
       for (const extra of extraCols) {
         if (extra.name) {
           rows[existingIndex][extra.name] = extra.defaultValue || '';
@@ -88,12 +96,22 @@ function updateExcel(filePath, barcode, columnConfig, sheetName = 'Sheet1') {
       }
       isDuplicate = true;
     } else {
+      // If product exists, prefill name/price and use product.quantity if provided
+      const qtyVal = product && (product.quantity !== undefined && product.quantity !== null)
+        ? Number(product.quantity)
+        : 1;
+
       const newObj = {
         [barcodeCol]: barcode,
-        [qtyCol]:     1,
+        [qtyCol]:     qtyVal,
         [tsCol]:      new Date().toLocaleString(),
       };
-      
+
+      if (product) {
+        if (product.name !== undefined) newObj['Name'] = product.name;
+        if (product.price !== undefined) newObj['Price'] = product.price;
+      }
+
       for (const extra of extraCols) {
         if (extra.name) {
           newObj[extra.name] = extra.defaultValue || '';
@@ -204,3 +222,44 @@ function rewriteExcel(filePath, sheetName, rows, columnsOrder) {
 }
 
 module.exports = { readExcel, updateExcel, undoLastScan, redoLastScan, exportToCSV, rewriteExcel };
+// Apply stock changes: decrement quantities in the sheet for given barcode changes
+async function applyStockChanges(filePath, changes = [], columnConfig = {}, sheetName = 'Sheet1') {
+  try {
+    if (!fs.existsSync(filePath)) return { success: false, error: 'File not found.' };
+    const workbook = XLSX.readFile(filePath);
+    if (!workbook.Sheets[sheetName]) return { success: false, error: 'Sheet not found.' };
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    const barcodeCol = columnConfig.barcodeColumn || 'Barcode';
+    const qtyCol = columnConfig.quantityColumn || 'Quantity';
+    const tsCol = columnConfig.timestampColumn || 'Last Scanned';
+
+    const updated = [];
+    for (const ch of changes) {
+      const bc = String(ch.barcode);
+      const qtyToDec = Number(ch.quantity) || 0;
+      const idx = rows.findIndex(r => String(r[barcodeCol]) === bc);
+      if (idx >= 0) {
+        const cur = Number(rows[idx][qtyCol] || 0);
+        const next = Math.max(0, cur - qtyToDec);
+        rows[idx][qtyCol] = next;
+        rows[idx][tsCol] = new Date().toLocaleString();
+        updated.push({ barcode: bc, before: cur, after: next });
+      } else {
+        // skip if not found
+        updated.push({ barcode: bc, error: 'not-found' });
+      }
+    }
+
+    const newSheet = XLSX.utils.json_to_sheet(rows, columnConfig.columnsOrder ? { header: columnConfig.columnsOrder } : {});
+    workbook.Sheets[sheetName] = newSheet;
+    XLSX.writeFile(workbook, filePath);
+    latestRowsCache = rows;
+    return { success: true, updated, rows, sheetNames: workbook.SheetNames };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+module.exports.applyStockChanges = applyStockChanges;

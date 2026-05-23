@@ -19,8 +19,11 @@ function ensureJsBarcode() {
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+// core product fields shown on the create/edit form. Keep 'name', 'quantity' and 'price' as required.
 const CORE_FIELDS = [
+  { key: 'name',     label: 'Product Name', type: 'text' },
   { key: 'quantity', label: 'Quantity',     type: 'number' },
+  { key: 'price',    label: 'Price',        type: 'number' },
 ];
 
 function ipcAvailable() {
@@ -40,6 +43,12 @@ async function apiCall(method, ...args) {
   if (method === 'getProducts')   return { success: true, products: memStore.products };
   if (method === 'saveProduct') {
     const p = args[0];
+    // validate required fields
+    if (!p.barcode) return { success: false, error: 'Barcode required' };
+    if (!String(p.name || '').trim()) return { success: false, error: 'Product name required' };
+    if (p.quantity === undefined || p.quantity === null) return { success: false, error: 'Quantity required' };
+    if (p.price === undefined || p.price === null) return { success: false, error: 'Price required' };
+
     if (p.id) {
       const idx = memStore.products.findIndex(x => x.id === p.id);
       if (idx >= 0) memStore.products[idx] = { ...memStore.products[idx], ...p };
@@ -55,7 +64,9 @@ async function apiCall(method, ...args) {
     return { success: true };
   }
   if (method === 'getBarcodeStats') {
-    return { success: true, total: memStore.products.length, cats: 0, totalQty: 0 };
+    const total = memStore.products.length;
+    const totalQty = memStore.products.reduce((a,p) => a + (Number(p.quantity) || 0), 0);
+    return { success: true, total, cats: 0, totalQty };
   }
   if (method === 'getCustomFields') return { success: true, fields: memStore.fields };
   if (method === 'saveCustomField') {
@@ -167,7 +178,11 @@ export default function BarcodeGenerator() {
 
   // ── save product ─────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!editProduct?.barcode) return;
+    // Validate required fields when creating/saving
+    if (!editProduct?.barcode) { showToast('Barcode required', 'err'); return; }
+    if (!String(editProduct?.name || '').trim()) { showToast('Product name required', 'err'); return; }
+    if (!editProduct?.quantity && editProduct?.quantity !== 0) { showToast('Quantity required', 'err'); return; }
+    if (!editProduct?.price && editProduct?.price !== 0) { showToast('Price required', 'err'); return; }
     setSaving(true);
     const res = await apiCall('saveProduct', editProduct);
     setSaving(false);
@@ -200,7 +215,7 @@ export default function BarcodeGenerator() {
         <div class="label">
           ${printRef.current?.outerHTML || ''}
           ${editProduct?.name ? `<div class="pname">${editProduct.name}</div>` : ''}
-          ${editProduct?.price ? `<div class="pprice">$${parseFloat(editProduct.price).toFixed(2)}</div>` : ''}
+          ${editProduct?.price ? `<div class="pprice">Rs. ${parseFloat(editProduct.price).toFixed(2)}</div>` : ''}
         </div>`);
     }
     printWin.document.write(`
@@ -417,7 +432,7 @@ export default function BarcodeGenerator() {
               {editProduct.sku  && <div className="bc-preview-sku">SKU: {editProduct.sku}</div>}
               <svg ref={svgRef} className="bc-preview-svg" />
               {editProduct.price && (
-                <div className="bc-preview-price">${parseFloat(editProduct.price||0).toFixed(2)}</div>
+                <div className="bc-preview-price">Rs. {parseFloat(editProduct.price||0).toFixed(2)}</div>
               )}
             </div>
 

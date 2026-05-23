@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const excelHandler = require('./excel-handler.cjs');
 const BarcodeDB    = require('./barcode-db.cjs');
+const printHandler = require('./print-handler.cjs');
 const fs = require('fs');
 
 let mainWindow;
@@ -49,7 +50,14 @@ ipcMain.handle('excel:read', async (_, payload) => {
 
 // IPC: Process a scanned barcode → update Excel
 ipcMain.handle('excel:update', async (_, { filePath, barcode, columnConfig, sheetName }) => {
-  return excelHandler.updateExcel(filePath, barcode, columnConfig, sheetName);
+  try {
+    // attempt to enrich the scan with product data from the product DB
+    let product = null;
+    try { product = await barcodeDB.getProduct(barcode); } catch (_) { product = null; }
+    return excelHandler.updateExcel(filePath, barcode, columnConfig, sheetName, product);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 // IPC: Rewrite sheet for structure changes (column rename)
@@ -150,4 +158,63 @@ ipcMain.handle('barcode:saveCustomField', async (_, field) => {
 ipcMain.handle('barcode:deleteCustomField', async (_, id) => {
   try { return await barcodeDB.deleteCustomField(id); }
   catch (e) { return { success: false, error: e.message }; }
+});
+
+// ── Billing / Invoice IPC ─────────────────────────────────────────────────────
+
+ipcMain.handle('invoice:save', async (_, invoice) => {
+  try { return await barcodeDB.saveInvoice(invoice); }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+// Apply stock changes to an Excel file (decrement quantities)
+ipcMain.handle('invoice:applyStockChanges', async (_, { filePath, changes, columnConfig, sheetName }) => {
+  try {
+    return excelHandler.applyStockChanges(filePath, changes, columnConfig, sheetName);
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('invoice:getAll', async (_, limit) => {
+  try { return { success: true, invoices: await barcodeDB.getInvoices(limit) }; }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('invoice:get', async (_, invoiceNo) => {
+  try { return { success: true, invoice: await barcodeDB.getInvoice(invoiceNo) }; }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('invoice:delete', async (_, invoiceNo) => {
+  try { return await barcodeDB.deleteInvoice(invoiceNo); }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+// ── Printer IPC ───────────────────────────────────────────────────────────────
+
+ipcMain.handle('printer:list', async () => {
+  try {
+    const printers = await printHandler.getAvailablePrinters(mainWindow);
+    return { success: true, printers };
+  } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('printer:print', async (_, { invoice, shopConfig, printerName }) => {
+  try { return await printHandler.printReceipt(invoice, shopConfig, printerName); }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+// ── Shop Settings IPC ─────────────────────────────────────────────────────────
+
+ipcMain.handle('settings:getShop', async () => {
+  const p = path.join(app.getPath('userData'), 'shop-config.json');
+  if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
+  return {};
+});
+
+ipcMain.handle('settings:saveShop', async (_, config) => {
+  const p = path.join(app.getPath('userData'), 'shop-config.json');
+  fs.writeFileSync(p, JSON.stringify(config, null, 2), 'utf8');
+  return { success: true };
 });

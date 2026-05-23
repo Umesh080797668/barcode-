@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import ScanVaultTutorial from './ScanVaultTutorial';
 import BarcodeGenerator from './BarcodeGenerator';
+import BillingModule from './BillingModule';
 
 export default function App() {
   const [filePath, setFilePath] = useState('');
@@ -28,7 +29,9 @@ export default function App() {
   // Unified Columns List (Defaults + Extras for ordering)
   const [columnsList, setColumnsList] = useState([
     { id: 'barcode', name: 'Barcode', isDefault: true, defaultValue: '' },
+    { id: 'name',    name: 'Name',    isDefault: true, defaultValue: '' },
     { id: 'quantity', name: 'Quantity', isDefault: true, defaultValue: '' },
+    { id: 'price',   name: 'Price',   isDefault: true, defaultValue: '' },
     { id: 'timestamp', name: 'Last Scanned', isDefault: true, defaultValue: '' }
   ]);
 
@@ -379,6 +382,9 @@ export default function App() {
               <button className={`tab ${activeTab === 'barcode' ? 'tab-on' : ''}`} onClick={() => setActiveTab('barcode')}>
                 <IconBarcode /> Barcode Creator
               </button>
+              <button className={`tab ${activeTab === 'billing' ? 'tab-on' : ''}`} onClick={() => setActiveTab('billing')}>
+  <IconPrinter /> Billing
+</button>
               <button className={`tab ${activeTab === 'settings' ? 'tab-on' : ''}`} onClick={() => setActiveTab('settings')}>
                 <IconSettings /> Settings
               </button>
@@ -396,11 +402,17 @@ export default function App() {
             )}
           </div>
 
-          {activeTab === 'barcode' ? (
-            <BarcodeGenerator />
-          ) : activeTab === 'data' ? (
-            <div className="table-wrap">
-              {searchQuery && filteredRows.length === 0 ? (
+{activeTab === 'billing' ? (
+  <BillingModule 
+    filePath={filePath}
+    sheetName={sheetName}
+    columnConfig={{ barcodeColumn: barcodeColName, quantityColumn: quantityColName, timestampColumn: timestampColName, columnsOrder: orderedNames }}
+  />
+) : activeTab === 'barcode' ? (
+  <BarcodeGenerator />
+) : activeTab === 'data' ? (
+  <div className="table-wrap">
+    {searchQuery && filteredRows.length === 0 ? (
                 <div className="empty-state">
                   <h2 className="empty-h">No results found</h2>
                   <p className="empty-p">No records match "{searchQuery}"</p>
@@ -441,9 +453,13 @@ export default function App() {
                               h === barcodeColName ? 'td-code' :
                               h === quantityColName ? 'td-qty' : ''
                             }>
-                              {h === quantityColName
-                                ? <span className="qty-badge">{String(row[h] ?? '')}</span>
-                                : String(row[h] ?? '')}
+                              {h === quantityColName ? (
+                                <span className="qty-badge">{String(row[h] ?? '')}</span>
+                              ) : h === 'Price' ? (
+                                `Rs. ${parseFloat(row[h] || 0).toFixed(2)}`
+                              ) : (
+                                String(row[h] ?? '')
+                              )}
                             </td>
                           ))}
                         </tr>
