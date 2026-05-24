@@ -21,6 +21,7 @@ export default function App() {
   const [newSheetInput, setNewSheetInput] = useState('');
   const [showNewSheetInput, setShowNewSheetInput] = useState(false);
   const [manualInput, setManualInput] = useState('');
+  const [lastScanPopup, setLastScanPopup] = useState(null);
 
   const [barcodeColName] = useState('Barcode');
   const [quantityColName] = useState('Quantity');
@@ -38,7 +39,15 @@ export default function App() {
   const barcodeBuffer = useRef('');
   const bufferTimer = useRef(null);
   const statusTimer = useRef(null);
+  const popupTimer = useRef(null);
   const tableBodyRef = useRef(null);
+
+  const showLastScanPopup = useCallback((entry) => {
+    if (activeTab !== 'data') return;
+    setLastScanPopup(entry);
+    clearTimeout(popupTimer.current);
+    popupTimer.current = setTimeout(() => setLastScanPopup(null), 3000);
+  }, [activeTab]);
 
   const setTempStatus = (type, msg) => {
     setStatus(type);
@@ -75,10 +84,17 @@ export default function App() {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
       if (e.key === 'Enter') {
-        const barcode = barcodeBuffer.current.trim();
+        const barcode = barcodeBuffer.current;
         barcodeBuffer.current = '';
         clearTimeout(bufferTimer.current);
-        if (barcode.length > 2) processBarcode(barcode);
+        if (barcode.trim().length > 2) {
+          if (activeTab === 'billing') {
+            // route scan to billing UI to add to cart
+            window.postMessage({ action: 'billing:scan', barcode }, '*');
+          } else {
+            processBarcode(barcode, 'scan');
+          }
+        }
       } else if (e.key.length === 1) {
         barcodeBuffer.current += e.key;
         clearTimeout(bufferTimer.current);
@@ -89,7 +105,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   });
 
-  async function processBarcode(barcode) {
+  useEffect(() => () => clearTimeout(popupTimer.current), []);
+
+  async function processBarcode(barcode, source = 'scan') {
     if (!window.electronAPI) {
       const existing = rows.find(r => String(r[barcodeColName]) === String(barcode));
       const now = new Date().toLocaleString();
@@ -106,7 +124,9 @@ export default function App() {
       }
       setRows(newRows);
       setUniqueItems(newRows.length);
-      setScans(prev => [{ barcode, time: new Date().toLocaleTimeString(), isDuplicate }, ...prev.slice(0, 99)]);
+      const entry = { barcode, time: new Date().toLocaleTimeString(), isDuplicate, source };
+      setScans(prev => [entry, ...prev.slice(0, 99)]);
+      showLastScanPopup(entry);
       setTotalScansToday(p => p + 1);
       setTempStatus(isDuplicate ? 'duplicate' : 'success', isDuplicate ? `+1 qty: ${barcode}` : `New item: ${barcode}`);
       return;
@@ -138,7 +158,9 @@ export default function App() {
       setRows(result.rows);
       setUniqueItems(result.rows.length);
       setAvailableSheets(result.sheetNames || availableSheets);
-      setScans(prev => [{ barcode, time: new Date().toLocaleTimeString(), isDuplicate: result.isDuplicate }, ...prev.slice(0, 99)]);
+      const entry = { barcode, time: new Date().toLocaleTimeString(), isDuplicate: result.isDuplicate, source };
+      setScans(prev => [entry, ...prev.slice(0, 99)]);
+      showLastScanPopup(entry);
       setTotalScansToday(p => p + 1);
       setTempStatus(result.isDuplicate ? 'duplicate' : 'success',
         result.isDuplicate ? `+1 qty: ${barcode}` : `New item: ${barcode}`);
@@ -175,13 +197,29 @@ export default function App() {
   };
 
   const handleManualScan = () => {
-    const val = manualInput.trim();
-    if (val.length > 0) { processBarcode(val); setManualInput(''); }
+    const val = manualInput;
+    if (val.trim().length > 0) { processBarcode(val, 'manual'); setManualInput(''); }
   };
 
   const filteredRows = rows.filter(row =>
     headers.some(h => String(row[h] ?? '').toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  useEffect(() => {
+    if (activeTab !== 'data') return;
+    const latestBarcode = scans[0]?.barcode;
+    if (!latestBarcode || !tableBodyRef.current || filteredRows.length === 0) return;
+
+    const targetIndex = filteredRows.findIndex(
+      row => String(row[barcodeColName]) === String(latestBarcode)
+    );
+    if (targetIndex < 0) return;
+
+    const targetRow = tableBodyRef.current.children[targetIndex];
+    if (targetRow && typeof targetRow.scrollIntoView === 'function') {
+      targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeTab, scans, filteredRows, barcodeColName]);
 
   const statusColors = { success: 'var(--green)', duplicate: 'var(--amber)', error: 'var(--red)', idle: 'var(--muted)' };
   const statusLabels = { success: 'Updated', duplicate: 'Qty +1', error: 'Error', idle: 'Ready' };
@@ -229,6 +267,12 @@ export default function App() {
 
   return (
     <div className={`app-shell ${scanFlash ? `flash-${scanFlash}` : ''}`}>
+      {lastScanPopup && (
+        <div className="last-scan-popup" role="status" aria-live="polite">
+          <div className="last-scan-title">Last {lastScanPopup.source === 'manual' ? 'Entered' : 'Scanned'}</div>
+          <div className="last-scan-code">{lastScanPopup.barcode}</div>
+        </div>
+      )}
       <ScanVaultTutorial />
       {/* Top Bar */}
       <header className="topbar">

@@ -1,24 +1,235 @@
-<svg xmlns="http://www.w3.org/2000/svg">
-  <symbol id="bluesky-icon" viewBox="0 0 16 17">
-    <g clip-path="url(#bluesky-clip)"><path fill="#08060d" d="M7.75 7.735c-.693-1.348-2.58-3.86-4.334-5.097-1.68-1.187-2.32-.981-2.74-.79C.188 2.065.1 2.812.1 3.251s.241 3.602.398 4.13c.52 1.744 2.367 2.333 4.07 2.145-2.495.37-4.71 1.278-1.805 4.512 3.196 3.309 4.38-.71 4.987-2.746.608 2.036 1.307 5.91 4.93 2.746 2.72-2.746.747-4.143-1.747-4.512 1.702.189 3.55-.4 4.07-2.145.156-.528.397-3.691.397-4.13s-.088-1.186-.575-1.406c-.42-.19-1.06-.395-2.741.79-1.755 1.24-3.64 3.752-4.334 5.099"/></g>
-    <defs><clipPath id="bluesky-clip"><path fill="#fff" d="M.1.85h15.3v15.3H.1z"/></clipPath></defs>
-  </symbol>
-  <symbol id="discord-icon" viewBox="0 0 20 19">
-    <path fill="#08060d" d="M16.224 3.768a14.5 14.5 0 0 0-3.67-1.153c-.158.286-.343.67-.47.976a13.5 13.5 0 0 0-4.067 0c-.128-.306-.317-.69-.476-.976A14.4 14.4 0 0 0 3.868 3.77C1.546 7.28.916 10.703 1.231 14.077a14.7 14.7 0 0 0 4.5 2.306q.545-.748.965-1.587a9.5 9.5 0 0 1-1.518-.74q.191-.14.372-.293c2.927 1.369 6.107 1.369 8.999 0q.183.152.372.294-.723.437-1.52.74.418.838.963 1.588a14.6 14.6 0 0 0 4.504-2.308c.37-3.911-.63-7.302-2.644-10.309m-9.13 8.234c-.878 0-1.599-.82-1.599-1.82 0-.998.705-1.82 1.6-1.82.894 0 1.614.82 1.599 1.82.001 1-.705 1.82-1.6 1.82m5.91 0c-.878 0-1.599-.82-1.599-1.82 0-.998.705-1.82 1.6-1.82.893 0 1.614.82 1.599 1.82 0 1-.706 1.82-1.6 1.82"/>
-  </symbol>
-  <symbol id="documentation-icon" viewBox="0 0 21 20">
-    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="m15.5 13.333 1.533 1.322c.645.555.967.833.967 1.178s-.322.623-.967 1.179L15.5 18.333m-3.333-5-1.534 1.322c-.644.555-.966.833-.966 1.178s.322.623.966 1.179l1.534 1.321"/>
-    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M17.167 10.836v-4.32c0-1.41 0-2.117-.224-2.68-.359-.906-1.118-1.621-2.08-1.96-.599-.21-1.349-.21-2.848-.21-2.623 0-3.935 0-4.983.369-1.684.591-3.013 1.842-3.641 3.428C3 6.449 3 7.684 3 10.154v2.122c0 2.558 0 3.838.706 4.726q.306.383.713.671c.76.536 1.79.64 3.581.66"/>
-    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M3 10a2.78 2.78 0 0 1 2.778-2.778c.555 0 1.209.097 1.748-.047.48-.129.854-.503.982-.982.145-.54.048-1.194.048-1.749a2.78 2.78 0 0 1 2.777-2.777"/>
-  </symbol>
-  <symbol id="github-icon" viewBox="0 0 19 19">
-    <path fill="#08060d" fill-rule="evenodd" d="M9.356 1.85C5.05 1.85 1.57 5.356 1.57 9.694a7.84 7.84 0 0 0 5.324 7.44c.387.079.528-.168.528-.376 0-.182-.013-.805-.013-1.454-2.165.467-2.616-.935-2.616-.935-.349-.91-.864-1.143-.864-1.143-.71-.48.051-.48.051-.48.787.051 1.2.805 1.2.805.695 1.194 1.817.857 2.268.649.064-.507.27-.857.49-1.052-1.728-.182-3.545-.857-3.545-3.87 0-.857.31-1.558.8-2.104-.078-.195-.349-1 .077-2.078 0 0 .657-.208 2.14.805a7.5 7.5 0 0 1 1.946-.26c.657 0 1.328.092 1.946.26 1.483-1.013 2.14-.805 2.14-.805.426 1.078.155 1.883.078 2.078.502.546.799 1.247.799 2.104 0 3.013-1.818 3.675-3.558 3.87.284.247.528.714.528 1.454 0 1.052-.012 1.896-.012 2.156 0 .208.142.455.528.377a7.84 7.84 0 0 0 5.324-7.441c.013-4.338-3.48-7.844-7.773-7.844" clip-rule="evenodd"/>
-  </symbol>
-  <symbol id="social-icon" viewBox="0 0 20 20">
-    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M12.5 6.667a4.167 4.167 0 1 0-8.334 0 4.167 4.167 0 0 0 8.334 0"/>
-    <path fill="none" stroke="#aa3bff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.35" d="M2.5 16.667a5.833 5.833 0 0 1 8.75-5.053m3.837.474.513 1.035c.07.144.257.282.414.309l.93.155c.596.1.736.536.307.965l-.723.73a.64.64 0 0 0-.152.531l.207.903c.164.715-.213.991-.84.618l-.872-.52a.63.63 0 0 0-.577 0l-.872.52c-.624.373-1.003.094-.84-.618l.207-.903a.64.64 0 0 0-.152-.532l-.723-.729c-.426-.43-.289-.864.306-.964l.93-.156a.64.64 0 0 0 .412-.31l.513-1.034c.28-.562.735-.562 1.012 0"/>
-  </symbol>
-  <symbol id="x-icon" viewBox="0 0 19 19">
-    <path fill="#08060d" fill-rule="evenodd" d="M1.893 1.98c.052.072 1.245 1.769 2.653 3.77l2.892 4.114c.183.261.333.48.333.486s-.068.089-.152.183l-.522.593-.765.867-3.597 4.087c-.375.426-.734.834-.798.905a1 1 0 0 0-.118.148c0 .01.236.017.664.017h.663l.729-.83c.4-.457.796-.906.879-.999a692 692 0 0 0 1.794-2.038c.034-.037.301-.34.594-.675l.551-.624.345-.392a7 7 0 0 1 .34-.374c.006 0 .93 1.306 2.052 2.903l2.084 2.965.045.063h2.275c1.87 0 2.273-.003 2.266-.021-.008-.02-1.098-1.572-3.894-5.547-2.013-2.862-2.28-3.246-2.273-3.266.008-.019.282-.332 2.085-2.38l2-2.274 1.567-1.782c.022-.028-.016-.03-.65-.03h-.674l-.3.342a871 871 0 0 1-1.782 2.025c-.067.075-.405.458-.75.852a100 100 0 0 1-.803.91c-.148.172-.299.344-.99 1.127-.304.343-.32.358-.345.327-.015-.019-.904-1.282-1.976-2.808L6.365 1.85H1.8zm1.782.91 8.078 11.294c.772 1.08 1.413 1.973 1.425 1.984.016.017.241.02 1.05.017l1.03-.004-2.694-3.766L7.796 5.75 5.722 2.852l-1.039-.004-1.039-.004z" clip-rule="evenodd"/>
-  </symbol>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Background gradient: deep teal to rich green -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f2027"/>
+      <stop offset="50%" stop-color="#203a43"/>
+      <stop offset="100%" stop-color="#2c5364"/>
+    </linearGradient>
+
+    <!-- Green accent glow -->
+    <linearGradient id="accentGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e676"/>
+      <stop offset="100%" stop-color="#00c853"/>
+    </linearGradient>
+
+    <!-- Scan beam gradient -->
+    <linearGradient id="beam" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00e676" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#00e676" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#00e676" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Receipt gradient -->
+    <linearGradient id="receipt" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.07"/>
+    </linearGradient>
+
+    <!-- Glow filter -->
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Soft shadow -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+
+    <!-- Inner glow for barcode lines -->
+    <filter id="lineGlow">
+      <feGaussianBlur stdDeviation="1.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Clip for rounded square -->
+    <clipPath id="roundClip">
+      <rect width="512" height="512" rx="112" ry="112"/>
+    </clipPath>
+  </defs>
+
+  <!-- App icon background -->
+  <rect width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
+
+  <!-- Subtle grid texture overlay -->
+  <g opacity="0.04" clip-path="url(#roundClip)">
+    <line x1="0" y1="85" x2="512" y2="85" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="170" x2="512" y2="170" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="256" x2="512" y2="256" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="341" x2="512" y2="341" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="426" x2="512" y2="426" stroke="white" stroke-width="1"/>
+    <line x1="85" y1="0" x2="85" y2="512" stroke="white" stroke-width="1"/>
+    <line x1="170" y1="0" x2="170" y2="512" stroke="white" stroke-width="1"/>
+    <line x1="256" y1="0" x2="256" y2="512" stroke="white" stroke-width="1"/>
+    <line x1="341" y1="0" x2="341" y2="512" stroke="white" stroke-width="1"/>
+    <line x1="426" y1="0" x2="426" y2="512" stroke="white" stroke-width="1"/>
+  </g>
+
+  <!-- ── RECEIPT CARD ── -->
+  <g filter="url(#shadow)">
+    <!-- Receipt body -->
+    <rect x="130" y="90" width="210" height="310" rx="10" ry="10" fill="url(#receipt)" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+
+    <!-- Receipt torn top edge -->
+    <path d="M130,100 Q140,90 150,100 Q160,110 170,100 Q180,90 190,100 Q200,110 210,100 Q220,90 230,100 Q240,110 250,100 Q260,90 270,100 Q280,110 290,100 Q300,90 310,100 Q320,110 330,100 Q340,90 340,100" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+
+    <!-- Receipt header line -->
+    <rect x="155" y="115" width="160" height="8" rx="4" fill="rgba(255,255,255,0.55)"/>
+    <rect x="175" y="130" width="120" height="5" rx="2.5" fill="rgba(255,255,255,0.3)"/>
+
+    <!-- Divider -->
+    <line x1="145" y1="148" x2="325" y2="148" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="4,3"/>
+
+    <!-- Receipt text lines -->
+    <rect x="150" y="158" width="90" height="5" rx="2.5" fill="rgba(255,255,255,0.35)"/>
+    <rect x="270" y="158" width="55" height="5" rx="2.5" fill="rgba(255,255,255,0.35)"/>
+
+    <rect x="150" y="172" width="80" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+    <rect x="270" y="172" width="55" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+
+    <rect x="150" y="184" width="95" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+    <rect x="270" y="184" width="55" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+
+    <rect x="150" y="196" width="70" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+    <rect x="270" y="196" width="55" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+
+    <!-- Divider -->
+    <line x1="145" y1="210" x2="325" y2="210" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+
+    <!-- Total line -->
+    <rect x="150" y="218" width="50" height="6" rx="3" fill="rgba(255,255,255,0.5)"/>
+    <rect x="255" y="218" width="70" height="6" rx="3" fill="url(#accentGreen)" opacity="0.9"/>
+
+    <!-- Divider -->
+    <line x1="145" y1="234" x2="325" y2="234" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="4,3"/>
+
+    <!-- BARCODE SECTION -->
+    <!-- Barcode bars — varied widths like a real barcode -->
+    <g filter="url(#lineGlow)" opacity="0.95">
+      <!-- Bar group 1 -->
+      <rect x="150" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+      <rect x="155" y="248" width="6" height="46" rx="1" fill="#00e676"/>
+      <rect x="163" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="167" y="248" width="4" height="46" rx="1" fill="#00e676"/>
+      <rect x="173" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="177" y="248" width="7" height="46" rx="1" fill="#00e676"/>
+      <!-- middle guard -->
+      <rect x="186" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="190" y="248" width="5" height="46" rx="1" fill="#00e676"/>
+      <rect x="197" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+      <rect x="202" y="248" width="6" height="46" rx="1" fill="#00e676"/>
+      <rect x="210" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="214" y="248" width="4" height="46" rx="1" fill="#00e676"/>
+      <!-- center separator -->
+      <rect x="221" y="248" width="2" height="46" rx="1" fill="rgba(255,255,255,0.4)"/>
+      <!-- right side bars -->
+      <rect x="226" y="248" width="5" height="46" rx="1" fill="#00e676"/>
+      <rect x="233" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="237" y="248" width="6" height="46" rx="1" fill="#00e676"/>
+      <rect x="245" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+      <rect x="250" y="248" width="4" height="46" rx="1" fill="#00e676"/>
+      <rect x="256" y="248" width="7" height="46" rx="1" fill="#00e676"/>
+      <rect x="265" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="269" y="248" width="5" height="46" rx="1" fill="#00e676"/>
+      <rect x="276" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+      <rect x="281" y="248" width="6" height="46" rx="1" fill="#00e676"/>
+      <rect x="289" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="293" y="248" width="4" height="46" rx="1" fill="#00e676"/>
+      <rect x="299" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+      <rect x="304" y="248" width="6" height="46" rx="1" fill="#00e676"/>
+      <rect x="312" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="316" y="248" width="4" height="46" rx="1" fill="#00e676"/>
+      <rect x="322" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+    </g>
+
+    <!-- Barcode number text -->
+    <text x="235" y="308" font-family="'Courier New', monospace" font-size="11" fill="rgba(255,255,255,0.55)" text-anchor="middle" letter-spacing="2">INV-2026-0523</text>
+
+    <!-- Bottom receipt curl / torn edge -->
+    <path d="M130,388 Q140,398 150,388 Q160,378 170,388 Q180,398 190,388 Q200,378 210,388 Q220,398 230,388 Q240,378 250,388 Q260,398 270,388 Q280,378 290,388 Q300,398 310,388 Q320,378 330,388 Q340,398 340,388 L340,400 L130,400 Z" fill="rgba(255,255,255,0.07)"/>
+  </g>
+
+  <!-- ── SCAN LASER LINE ── -->
+  <!-- Laser beam sweeping across barcode area -->
+  <g filter="url(#glow)">
+    <!-- Horizontal scan line -->
+    <line x1="118" y1="271" x2="352" y2="271" stroke="#00e676" stroke-width="2.5" opacity="0.95"/>
+    <!-- Line glow spread -->
+    <line x1="118" y1="271" x2="352" y2="271" stroke="#00e676" stroke-width="8" opacity="0.18"/>
+    <line x1="118" y1="271" x2="352" y2="271" stroke="#00ff88" stroke-width="14" opacity="0.07"/>
+
+    <!-- Left scan bracket -->
+    <path d="M118,248 L118,271 L135,271" fill="none" stroke="#00e676" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+    <path d="M118,294 L118,271" fill="none" stroke="#00e676" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+
+    <!-- Right scan bracket -->
+    <path d="M352,248 L352,271 L335,271" fill="none" stroke="#00e676" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+    <path d="M352,294 L352,271" fill="none" stroke="#00e676" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+  </g>
+
+  <!-- ── INVENTORY EXCEL ICON (bottom-right) ── -->
+  <!-- Small spreadsheet symbol hinting at Excel integration -->
+  <g transform="translate(320, 340)" filter="url(#shadow)">
+    <!-- Card background -->
+    <rect x="0" y="0" width="68" height="58" rx="9" fill="rgba(0,198,100,0.18)" stroke="rgba(0,230,118,0.35)" stroke-width="1.5"/>
+    <!-- Grid lines -->
+    <line x1="22" y1="0" x2="22" y2="58" stroke="rgba(0,230,118,0.25)" stroke-width="1"/>
+    <line x1="45" y1="0" x2="45" y2="58" stroke="rgba(0,230,118,0.25)" stroke-width="1"/>
+    <line x1="0" y1="19" x2="68" y2="19" stroke="rgba(0,230,118,0.25)" stroke-width="1"/>
+    <line x1="0" y1="38" x2="68" y2="38" stroke="rgba(0,230,118,0.25)" stroke-width="1"/>
+    <!-- Header row highlight -->
+    <rect x="0" y="0" width="68" height="19" rx="9" fill="rgba(0,230,118,0.2)"/>
+    <rect x="0" y="9.5" width="68" height="9.5" fill="rgba(0,230,118,0.2)"/>
+    <!-- Cell fills: green accent cells -->
+    <rect x="23" y="20" width="21" height="17" fill="rgba(0,230,118,0.25)"/>
+    <rect x="46" y="39" width="21" height="18" rx="0" fill="rgba(0,230,118,0.2)"/>
+    <!-- Mini chart bar in last cell -->
+    <rect x="50" y="43" width="4" height="10" rx="1" fill="#00e676" opacity="0.8"/>
+    <rect x="56" y="46" width="4" height="7" rx="1" fill="#00e676" opacity="0.6"/>
+    <rect x="62" y="41" width="4" height="12" rx="1" fill="#00e676" opacity="0.9"/>
+  </g>
+
+  <!-- ── SV MONOGRAM (top-left accent) ── -->
+  <g transform="translate(108, 88)">
+    <!-- Background dot -->
+    <circle cx="18" cy="18" r="18" fill="rgba(0,230,118,0.15)" stroke="rgba(0,230,118,0.3)" stroke-width="1.5"/>
+    <text x="18" y="23" font-family="'Arial Black', sans-serif" font-size="14" font-weight="900" fill="#00e676" text-anchor="middle" opacity="0.9">SV</text>
+  </g>
+
+  <!-- ── CONNECTING DOT NODES (data flow feel) ── -->
+  <g opacity="0.35">
+    <!-- Node 1 -->
+    <circle cx="108" cy="180" r="3.5" fill="#00e676"/>
+    <!-- Node 2 -->
+    <circle cx="108" cy="370" r="3.5" fill="#00e676"/>
+    <!-- Vertical connector -->
+    <line x1="108" y1="183" x2="108" y2="367" stroke="#00e676" stroke-width="1" stroke-dasharray="5,5"/>
+
+    <!-- Node right side -->
+    <circle cx="402" cy="180" r="3.5" fill="#00e676"/>
+    <circle cx="402" cy="340" r="3.5" fill="#00e676"/>
+    <line x1="402" y1="183" x2="402" y2="337" stroke="#00e676" stroke-width="1" stroke-dasharray="5,5"/>
+  </g>
+
+  <!-- ── TITLE TEXT: ScanVault ── -->
+  <text
+    x="256" y="468"
+    font-family="'Arial Black', 'Helvetica Neue', sans-serif"
+    font-size="42"
+    font-weight="900"
+    fill="white"
+    text-anchor="middle"
+    letter-spacing="-1"
+    opacity="0.92"
+  >ScanVault</text>
+
+  <!-- Green underline accent -->
+  <rect x="148" y="475" width="216" height="4" rx="2" fill="url(#accentGreen)" opacity="0.85"/>
+
+  <!-- ── OUTER RING GLOW ── -->
+  <rect x="3" y="3" width="506" height="506" rx="110" ry="110" fill="none" stroke="rgba(0,230,118,0.12)" stroke-width="3"/>
 </svg>

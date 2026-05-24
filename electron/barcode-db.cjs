@@ -279,6 +279,8 @@ async _ensureInvoiceTables() {
       paid_cash     REAL DEFAULT 0,
       balance       REAL DEFAULT 0,
       status        TEXT DEFAULT 'unpaid',
+      transaction_type TEXT DEFAULT 'sale',
+      return_reason TEXT DEFAULT '',
       created_at    TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -293,9 +295,27 @@ async _ensureInvoiceTables() {
       discount    REAL DEFAULT 0,
       net_price   REAL DEFAULT 0,
       total       REAL DEFAULT 0,
+      warranty    TEXT DEFAULT '',
       FOREIGN KEY (invoice_id) REFERENCES invoices(id)
     );
   `);
+
+  const itemColumns = this.db.exec("PRAGMA table_info(invoice_items)");
+  const hasWarranty = itemColumns.length > 0 && itemColumns[0].values.some(row => row[1] === 'warranty');
+  if (!hasWarranty) {
+    this.db.run("ALTER TABLE invoice_items ADD COLUMN warranty TEXT DEFAULT ''");
+  }
+
+  const invoiceColumns = this.db.exec("PRAGMA table_info(invoices)");
+  const hasTransactionType = invoiceColumns.length > 0 && invoiceColumns[0].values.some(row => row[1] === 'transaction_type');
+  if (!hasTransactionType) {
+    this.db.run("ALTER TABLE invoices ADD COLUMN transaction_type TEXT DEFAULT 'sale'");
+  }
+  const hasReturnReason = invoiceColumns.length > 0 && invoiceColumns[0].values.some(row => row[1] === 'return_reason');
+  if (!hasReturnReason) {
+    this.db.run("ALTER TABLE invoices ADD COLUMN return_reason TEXT DEFAULT ''");
+  }
+
   this._saveDisk();
 }
 
@@ -314,8 +334,8 @@ async saveInvoice(invoice) {
 
   const stmt = this.db.prepare(`
     INSERT INTO invoices 
-      (invoice_no, customer_name, customer_phone, cashier, subtotal, discount, total, paid_cash, balance, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (invoice_no, customer_name, customer_phone, cashier, subtotal, discount, total, paid_cash, balance, status, transaction_type, return_reason)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   stmt.run([
     invNo,
@@ -327,7 +347,9 @@ async saveInvoice(invoice) {
     invoice.total || 0,
     invoice.paid_cash || 0,
     invoice.balance || 0,
-    invoice.status || 'unpaid'
+    invoice.status || 'unpaid',
+    invoice.transaction_type || 'sale',
+    invoice.return_reason || ''
   ]);
   stmt.free();
 
@@ -338,8 +360,8 @@ async saveInvoice(invoice) {
   // Insert items
   for (const item of (invoice.items || [])) {
     const iStmt = this.db.prepare(`
-      INSERT INTO invoice_items (invoice_id, barcode, name, price, quantity, discount, net_price, total)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoice_items (invoice_id, barcode, name, price, quantity, discount, net_price, total, warranty)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     iStmt.run([
       invoiceId,
@@ -349,7 +371,8 @@ async saveInvoice(invoice) {
       item.quantity || 1,
       item.discount || 0,
       item.net_price || item.price || 0,
-      item.total || 0
+      item.total || 0,
+      item.warranty || ''
     ]);
     iStmt.free();
 

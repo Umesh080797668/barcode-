@@ -5,6 +5,9 @@ const BarcodeDB    = require('./barcode-db.cjs');
 const printHandler = require('./print-handler.cjs');
 const fs = require('fs');
 
+// Periodic flusher for pending Excel operations
+const FLUSH_INTERVAL_MS = 5000;
+
 let mainWindow;
 let barcodeDB;
 
@@ -34,6 +37,15 @@ function createWindow() {
 app.whenReady().then(() => {
   barcodeDB = new BarcodeDB(app);
   createWindow();
+});
+
+// Start periodic flusher after app ready
+app.whenReady().then(() => {
+  try {
+    setInterval(() => {
+      try { excelHandler.flushAllPending(); } catch (e) { /* ignore */ }
+    }, FLUSH_INTERVAL_MS);
+  } catch (e) { /* ignore */ }
 });
 
 app.on('window-all-closed', () => {

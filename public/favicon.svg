@@ -1,1 +1,235 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="48" height="46" fill="none" viewBox="0 0 48 46"><path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" style="fill:#863bff;fill:color(display-p3 .5252 .23 1);fill-opacity:1"/><mask id="a" width="48" height="46" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#000" d="M25.842 44.938c-.664.844-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.183c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.498 0-3.579-1.842-3.579H1.133c-.92 0-1.456-1.04-.92-1.787L9.91.473c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.578 1.842 3.578h11.377c.943 0 1.473 1.088.89 1.832L25.843 44.94z" style="fill:#000;fill-opacity:1"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="5.508" cy="14.704" fill="#ede6ff" rx="5.508" ry="14.704" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -4.47 31.516)"/></g><g filter="url(#c)"><ellipse cx="10.399" cy="29.851" fill="#ede6ff" rx="10.399" ry="29.851" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -39.328 7.883)"/></g><g filter="url(#d)"><ellipse cx="5.508" cy="30.487" fill="#7e14ff" rx="5.508" ry="30.487" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -25.913 -14.639)scale(1 -1)"/></g><g filter="url(#e)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -32.644 -3.334)scale(1 -1)"/></g><g filter="url(#f)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -34.34 30.47)"/></g><g filter="url(#g)"><ellipse cx="14.072" cy="22.078" fill="#ede6ff" rx="14.072" ry="22.078" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="rotate(93.35 24.506 48.493)scale(-1 1)"/></g><g filter="url(#h)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#i)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#j)"><ellipse cx=".387" cy="8.972" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(39.51 .387 8.972)"/></g><g filter="url(#k)"><ellipse cx="47.523" cy="-6.092" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 47.523 -6.092)"/></g><g filter="url(#l)"><ellipse cx="41.412" cy="6.333" fill="#47bfff" rx="5.971" ry="9.665" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 41.412 6.333)"/></g><g filter="url(#m)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#n)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#o)"><ellipse cx="35.651" cy="29.907" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 35.651 29.907)"/></g><g filter="url(#p)"><ellipse cx="38.418" cy="32.4" fill="#47bfff" rx="5.971" ry="15.297" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 38.418 32.4)"/></g></g><defs><filter id="b" width="60.045" height="41.654" x="-19.77" y="16.149" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="c" width="90.34" height="51.437" x="-54.613" y="-7.533" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="d" width="79.355" height="29.4" x="-49.64" y="2.03" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="e" width="79.579" height="29.4" x="-45.045" y="20.029" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="f" width="79.579" height="29.4" x="-43.513" y="21.178" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="g" width="74.749" height="58.852" x="15.756" y="-17.901" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="h" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="i" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="j" width="56.045" height="63.649" x="-27.636" y="-22.853" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="k" width="54.814" height="64.646" x="20.116" y="-38.415" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="l" width="33.541" height="35.313" x="24.641" y="-11.323" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="m" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="n" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="o" width="54.814" height="64.646" x="8.244" y="-2.416" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="p" width="39.409" height="43.623" x="18.713" y="10.588" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter></defs></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Background gradient: deep teal to rich green -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f2027"/>
+      <stop offset="50%" stop-color="#203a43"/>
+      <stop offset="100%" stop-color="#2c5364"/>
+    </linearGradient>
+
+    <!-- Green accent glow -->
+    <linearGradient id="accentGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e676"/>
+      <stop offset="100%" stop-color="#00c853"/>
+    </linearGradient>
+
+    <!-- Scan beam gradient -->
+    <linearGradient id="beam" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00e676" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#00e676" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#00e676" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Receipt gradient -->
+    <linearGradient id="receipt" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.07"/>
+    </linearGradient>
+
+    <!-- Glow filter -->
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Soft shadow -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+
+    <!-- Inner glow for barcode lines -->
+    <filter id="lineGlow">
+      <feGaussianBlur stdDeviation="1.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Clip for rounded square -->
+    <clipPath id="roundClip">
+      <rect width="512" height="512" rx="112" ry="112"/>
+    </clipPath>
+  </defs>
+
+  <!-- App icon background -->
+  <rect width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
+
+  <!-- Subtle grid texture overlay -->
+  <g opacity="0.04" clip-path="url(#roundClip)">
+    <line x1="0" y1="85" x2="512" y2="85" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="170" x2="512" y2="170" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="256" x2="512" y2="256" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="341" x2="512" y2="341" stroke="white" stroke-width="1"/>
+    <line x1="0" y1="426" x2="512" y2="426" stroke="white" stroke-width="1"/>
+    <line x1="85" y1="0" x2="85" y2="512" stroke="white" stroke-width="1"/>
+    <line x1="170" y1="0" x2="170" y2="512" stroke="white" stroke-width="1"/>
+    <line x1="256" y1="0" x2="256" y2="512" stroke="white" stroke-width="1"/>
+    <line x1="341" y1="0" x2="341" y2="512" stroke="white" stroke-width="1"/>
+    <line x1="426" y1="0" x2="426" y2="512" stroke="white" stroke-width="1"/>
+  </g>
+
+  <!-- ── RECEIPT CARD ── -->
+  <g filter="url(#shadow)">
+    <!-- Receipt body -->
+    <rect x="130" y="90" width="210" height="310" rx="10" ry="10" fill="url(#receipt)" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+
+    <!-- Receipt torn top edge -->
+    <path d="M130,100 Q140,90 150,100 Q160,110 170,100 Q180,90 190,100 Q200,110 210,100 Q220,90 230,100 Q240,110 250,100 Q260,90 270,100 Q280,110 290,100 Q300,90 310,100 Q320,110 330,100 Q340,90 340,100" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+
+    <!-- Receipt header line -->
+    <rect x="155" y="115" width="160" height="8" rx="4" fill="rgba(255,255,255,0.55)"/>
+    <rect x="175" y="130" width="120" height="5" rx="2.5" fill="rgba(255,255,255,0.3)"/>
+
+    <!-- Divider -->
+    <line x1="145" y1="148" x2="325" y2="148" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="4,3"/>
+
+    <!-- Receipt text lines -->
+    <rect x="150" y="158" width="90" height="5" rx="2.5" fill="rgba(255,255,255,0.35)"/>
+    <rect x="270" y="158" width="55" height="5" rx="2.5" fill="rgba(255,255,255,0.35)"/>
+
+    <rect x="150" y="172" width="80" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+    <rect x="270" y="172" width="55" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+
+    <rect x="150" y="184" width="95" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+    <rect x="270" y="184" width="55" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+
+    <rect x="150" y="196" width="70" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+    <rect x="270" y="196" width="55" height="4" rx="2" fill="rgba(255,255,255,0.22)"/>
+
+    <!-- Divider -->
+    <line x1="145" y1="210" x2="325" y2="210" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+
+    <!-- Total line -->
+    <rect x="150" y="218" width="50" height="6" rx="3" fill="rgba(255,255,255,0.5)"/>
+    <rect x="255" y="218" width="70" height="6" rx="3" fill="url(#accentGreen)" opacity="0.9"/>
+
+    <!-- Divider -->
+    <line x1="145" y1="234" x2="325" y2="234" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="4,3"/>
+
+    <!-- BARCODE SECTION -->
+    <!-- Barcode bars — varied widths like a real barcode -->
+    <g filter="url(#lineGlow)" opacity="0.95">
+      <!-- Bar group 1 -->
+      <rect x="150" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+      <rect x="155" y="248" width="6" height="46" rx="1" fill="#00e676"/>
+      <rect x="163" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="167" y="248" width="4" height="46" rx="1" fill="#00e676"/>
+      <rect x="173" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="177" y="248" width="7" height="46" rx="1" fill="#00e676"/>
+      <!-- middle guard -->
+      <rect x="186" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="190" y="248" width="5" height="46" rx="1" fill="#00e676"/>
+      <rect x="197" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+      <rect x="202" y="248" width="6" height="46" rx="1" fill="#00e676"/>
+      <rect x="210" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="214" y="248" width="4" height="46" rx="1" fill="#00e676"/>
+      <!-- center separator -->
+      <rect x="221" y="248" width="2" height="46" rx="1" fill="rgba(255,255,255,0.4)"/>
+      <!-- right side bars -->
+      <rect x="226" y="248" width="5" height="46" rx="1" fill="#00e676"/>
+      <rect x="233" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="237" y="248" width="6" height="46" rx="1" fill="#00e676"/>
+      <rect x="245" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+      <rect x="250" y="248" width="4" height="46" rx="1" fill="#00e676"/>
+      <rect x="256" y="248" width="7" height="46" rx="1" fill="#00e676"/>
+      <rect x="265" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="269" y="248" width="5" height="46" rx="1" fill="#00e676"/>
+      <rect x="276" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+      <rect x="281" y="248" width="6" height="46" rx="1" fill="#00e676"/>
+      <rect x="289" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="293" y="248" width="4" height="46" rx="1" fill="#00e676"/>
+      <rect x="299" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+      <rect x="304" y="248" width="6" height="46" rx="1" fill="#00e676"/>
+      <rect x="312" y="248" width="2" height="46" rx="1" fill="#00e676"/>
+      <rect x="316" y="248" width="4" height="46" rx="1" fill="#00e676"/>
+      <rect x="322" y="248" width="3" height="46" rx="1" fill="#00e676"/>
+    </g>
+
+    <!-- Barcode number text -->
+    <text x="235" y="308" font-family="'Courier New', monospace" font-size="11" fill="rgba(255,255,255,0.55)" text-anchor="middle" letter-spacing="2">INV-2026-0523</text>
+
+    <!-- Bottom receipt curl / torn edge -->
+    <path d="M130,388 Q140,398 150,388 Q160,378 170,388 Q180,398 190,388 Q200,378 210,388 Q220,398 230,388 Q240,378 250,388 Q260,398 270,388 Q280,378 290,388 Q300,398 310,388 Q320,378 330,388 Q340,398 340,388 L340,400 L130,400 Z" fill="rgba(255,255,255,0.07)"/>
+  </g>
+
+  <!-- ── SCAN LASER LINE ── -->
+  <!-- Laser beam sweeping across barcode area -->
+  <g filter="url(#glow)">
+    <!-- Horizontal scan line -->
+    <line x1="118" y1="271" x2="352" y2="271" stroke="#00e676" stroke-width="2.5" opacity="0.95"/>
+    <!-- Line glow spread -->
+    <line x1="118" y1="271" x2="352" y2="271" stroke="#00e676" stroke-width="8" opacity="0.18"/>
+    <line x1="118" y1="271" x2="352" y2="271" stroke="#00ff88" stroke-width="14" opacity="0.07"/>
+
+    <!-- Left scan bracket -->
+    <path d="M118,248 L118,271 L135,271" fill="none" stroke="#00e676" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+    <path d="M118,294 L118,271" fill="none" stroke="#00e676" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+
+    <!-- Right scan bracket -->
+    <path d="M352,248 L352,271 L335,271" fill="none" stroke="#00e676" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+    <path d="M352,294 L352,271" fill="none" stroke="#00e676" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+  </g>
+
+  <!-- ── INVENTORY EXCEL ICON (bottom-right) ── -->
+  <!-- Small spreadsheet symbol hinting at Excel integration -->
+  <g transform="translate(320, 340)" filter="url(#shadow)">
+    <!-- Card background -->
+    <rect x="0" y="0" width="68" height="58" rx="9" fill="rgba(0,198,100,0.18)" stroke="rgba(0,230,118,0.35)" stroke-width="1.5"/>
+    <!-- Grid lines -->
+    <line x1="22" y1="0" x2="22" y2="58" stroke="rgba(0,230,118,0.25)" stroke-width="1"/>
+    <line x1="45" y1="0" x2="45" y2="58" stroke="rgba(0,230,118,0.25)" stroke-width="1"/>
+    <line x1="0" y1="19" x2="68" y2="19" stroke="rgba(0,230,118,0.25)" stroke-width="1"/>
+    <line x1="0" y1="38" x2="68" y2="38" stroke="rgba(0,230,118,0.25)" stroke-width="1"/>
+    <!-- Header row highlight -->
+    <rect x="0" y="0" width="68" height="19" rx="9" fill="rgba(0,230,118,0.2)"/>
+    <rect x="0" y="9.5" width="68" height="9.5" fill="rgba(0,230,118,0.2)"/>
+    <!-- Cell fills: green accent cells -->
+    <rect x="23" y="20" width="21" height="17" fill="rgba(0,230,118,0.25)"/>
+    <rect x="46" y="39" width="21" height="18" rx="0" fill="rgba(0,230,118,0.2)"/>
+    <!-- Mini chart bar in last cell -->
+    <rect x="50" y="43" width="4" height="10" rx="1" fill="#00e676" opacity="0.8"/>
+    <rect x="56" y="46" width="4" height="7" rx="1" fill="#00e676" opacity="0.6"/>
+    <rect x="62" y="41" width="4" height="12" rx="1" fill="#00e676" opacity="0.9"/>
+  </g>
+
+  <!-- ── SV MONOGRAM (top-left accent) ── -->
+  <g transform="translate(108, 88)">
+    <!-- Background dot -->
+    <circle cx="18" cy="18" r="18" fill="rgba(0,230,118,0.15)" stroke="rgba(0,230,118,0.3)" stroke-width="1.5"/>
+    <text x="18" y="23" font-family="'Arial Black', sans-serif" font-size="14" font-weight="900" fill="#00e676" text-anchor="middle" opacity="0.9">SV</text>
+  </g>
+
+  <!-- ── CONNECTING DOT NODES (data flow feel) ── -->
+  <g opacity="0.35">
+    <!-- Node 1 -->
+    <circle cx="108" cy="180" r="3.5" fill="#00e676"/>
+    <!-- Node 2 -->
+    <circle cx="108" cy="370" r="3.5" fill="#00e676"/>
+    <!-- Vertical connector -->
+    <line x1="108" y1="183" x2="108" y2="367" stroke="#00e676" stroke-width="1" stroke-dasharray="5,5"/>
+
+    <!-- Node right side -->
+    <circle cx="402" cy="180" r="3.5" fill="#00e676"/>
+    <circle cx="402" cy="340" r="3.5" fill="#00e676"/>
+    <line x1="402" y1="183" x2="402" y2="337" stroke="#00e676" stroke-width="1" stroke-dasharray="5,5"/>
+  </g>
+
+  <!-- ── TITLE TEXT: ScanVault ── -->
+  <text
+    x="256" y="468"
+    font-family="'Arial Black', 'Helvetica Neue', sans-serif"
+    font-size="42"
+    font-weight="900"
+    fill="white"
+    text-anchor="middle"
+    letter-spacing="-1"
+    opacity="0.92"
+  >ScanVault</text>
+
+  <!-- Green underline accent -->
+  <rect x="148" y="475" width="216" height="4" rx="2" fill="url(#accentGreen)" opacity="0.85"/>
+
+  <!-- ── OUTER RING GLOW ── -->
+  <rect x="3" y="3" width="506" height="506" rx="110" ry="110" fill="none" stroke="rgba(0,230,118,0.12)" stroke-width="3"/>
+</svg>

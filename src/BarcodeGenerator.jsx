@@ -123,6 +123,11 @@ export default function BarcodeGenerator() {
   const printRef   = useRef(null);
   const searchTimer = useRef(null);
 
+  const notifyProductsChanged = () => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('products:changed'));
+  };
+
   // ── toast helper ────────────────────────────────────────────────────────
   const showToast = (msg, type = 'ok') => {
     setToast({ msg, type });
@@ -189,6 +194,7 @@ export default function BarcodeGenerator() {
     if (res.success) {
       showToast('Product saved ✓');
       await loadAll();
+      notifyProductsChanged();
       setView('preview');
     } else {
       showToast('Save failed: ' + res.error, 'err');
@@ -201,6 +207,7 @@ export default function BarcodeGenerator() {
     await apiCall('deleteProduct', id);
     showToast('Deleted');
     await loadAll();
+    notifyProductsChanged();
     setView('list');
   };
 
