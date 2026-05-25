@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { formatCurrency, formatNumber } from './utils/format';
 
 export default function BillingModule({ filePath, sheetName, columnConfig }) {
   const [view, setView] = useState('new'); // 'new' | 'history' | 'settings'
@@ -47,7 +48,7 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
   }, [isElectron, refreshProducts]);
 
   // Warranty options
-  const WARRANTY_OPTIONS = ['7 days','1 month','3 months','6 months','1 year','2 years','3 years','5 years'];
+  const WARRANTY_OPTIONS = ['No warranty', '7 days','1 month','3 months','6 months','1 year','2 years','3 years','5 years'];
 
   const loadInvoices = useCallback(() => {
     if (!isElectron) return;
@@ -71,6 +72,19 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
         ...i,
         discount: 0,
         warranty: '',
+        remaining_warranty: '',
+        net_price: i.price,
+        total: (i.price || 0) * (i.quantity || 0)
+      })));
+    }
+
+    if (transactionMode === 'customer_return') {
+      // For customer returns: preserve price, remove discounts and allow entering remaining warranty
+      setCartItems(prev => prev.map(i => ({
+        ...i,
+        discount: 0,
+        remaining_warranty: i.remaining_warranty || '',
+        warranty: i.warranty || '',
         net_price: i.price,
         total: (i.price || 0) * (i.quantity || 0)
       })));
@@ -92,14 +106,74 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
         barcode: productBarcode,
         name: product.name,
         warranty: transactionMode === 'supplier_return' ? '' : (product.warranty || '7 days'),
+        remaining_warranty: transactionMode === 'customer_return' ? (product.remaining_warranty || '') : '',
         price: product.price,
         discount: 0,
         net_price: product.price,
         quantity: 1,
-        total: product.price
+        total: product.price,
       }];
     });
   };
+
+  const buildProductFromInventoryRow = (row, fallbackBarcode) => {
+    if (!row) return null;
+    const barcodeColumn = columnConfig?.barcodeColumn || 'Barcode';
+    const barcode = barcodeText(row[barcodeColumn] || fallbackBarcode);
+    if (!barcode) return null;
+
+    const rawMode = String(row['Scan Mode'] ?? row.scan_mode ?? '').trim().toLowerCase();
+    const scanMode = rawMode === 'normal' ? 'normal' : 'inventory_only';
+    if (scanMode === 'inventory_only') return null;
+
+    const rawName = row.Name ?? row.name ?? row.Product ?? row.product ?? barcode;
+    const rawPrice = row.Price ?? row.price ?? row.SellingPrice ?? row.sellingPrice ?? row.Rate ?? row.rate ?? 0;
+
+    return {
+      barcode,
+      name: String(rawName || barcode),
+      price: Number(rawPrice) || 0,
+      quantity: Number(row[columnConfig?.quantityColumn || 'Quantity']) || 1,
+      scan_mode: scanMode,
+      warranty: row.warranty || row.Warranty || '',
+      remaining_warranty: row.remaining_warranty || row.remainingWarranty || '',
+    };
+  };
+
+  const resolveScannedProduct = useCallback(async (barcode) => {
+    const bc = barcodeText(barcode);
+    if (!bc) return null;
+
+    let prod = productsRef.current.find(p => barcodeText(p.barcode) === bc) || null;
+    if (prod) return prod;
+
+    if (isElectron) {
+      const direct = await window.electronAPI.getProduct(bc);
+      if (direct.success && direct.product) {
+        prod = direct.product;
+        if (prod?.scan_mode === 'inventory_only') return null;
+        setProducts(prev => {
+          const exists = prev.some(p => barcodeText(p.barcode) === bc);
+          return exists ? prev : [direct.product, ...prev];
+        });
+        return prod;
+      }
+    }
+
+    if (isElectron && filePath) {
+      const sheet = await window.electronAPI.readExcel(filePath, sheetName);
+      if (sheet.success && Array.isArray(sheet.rows)) {
+        const barcodeColumn = columnConfig?.barcodeColumn || 'Barcode';
+        const row = sheet.rows.find((item) => barcodeText(item[barcodeColumn]) === bc);
+        if (row) {
+          prod = buildProductFromInventoryRow(row, bc);
+          if (prod) return prod;
+        }
+      }
+    }
+
+    return null;
+  }, [columnConfig, filePath, isElectron, sheetName]);
 
   const updateCartItem = (barcode, field, value) => {
     const targetBarcode = barcodeText(barcode);
@@ -112,6 +186,9 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
       }
       if (field === 'warranty') {
         updated.warranty = value;
+      } else if (field === 'remaining_warranty') {
+        // free-text remaining warranty for customer returns
+        updated.remaining_warranty = value;
       } else {
         updated[field] = parseFloat(value) || 0;
         const net = updated.price - (updated.discount || 0);
@@ -147,12 +224,14 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
 
   // ── Totals ──────────────────────────────────────────────────────────────────
   const isSupplierReturn = transactionMode === 'supplier_return';
+  const isCustomerReturn = transactionMode === 'customer_return';
   const subtotal = cartItems.reduce((s, i) => s + i.price * i.quantity, 0);
-  const totalDiscount = isSupplierReturn ? 0 : cartItems.reduce((s, i) => s + (i.discount || 0) * i.quantity, 0);
-  const total = isSupplierReturn ? subtotal : cartItems.reduce((s, i) => s + i.total, 0);
+  const totalDiscount = (isSupplierReturn || isCustomerReturn) ? 0 : cartItems.reduce((s, i) => s + (i.discount || 0) * i.quantity, 0);
+  const total = (isSupplierReturn || isCustomerReturn) ? subtotal : cartItems.reduce((s, i) => s + i.total, 0);
   const balance = total - (parseFloat(paidCash) || 0);
 
-  const fmt = (n) => parseFloat(n || 0).toFixed(2);
+  // Use shared currency formatter
+  const fmt = (n) => formatCurrency(n);
 
   const generateInvoiceNumber = () => {
     const now = new Date();
@@ -172,7 +251,7 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
       return;
     }
 
-    const transactionType = isSupplierReturn ? 'supplier_return' : 'sale';
+    const transactionType = isSupplierReturn ? 'supplier_return' : (isCustomerReturn ? 'customer_return' : 'sale');
     const invoiceNo = generateInvoiceNumber();
     const invoice = {
       invoice_no: invoiceNo,
@@ -200,11 +279,13 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
   // Build receipt HTML identical to print-handler.cjs so preview matches the printed receipt
   const buildReceiptHTML = (invoice, options = {}) => {
     const shop = shopConfig || {};
-    const fmtN = (n) => parseFloat(n || 0).toFixed(2);
-    const isReturnInvoice = invoice?.transaction_type === 'supplier_return';
-    const warrantyText = isReturnInvoice ? '' : ([...new Set((invoice.items || [])
-      .map((item) => (item.warranty || '').trim())
-      .filter(Boolean))].join(', ') || '—');
+    // no local toFixed formatter — use shared `fmt` above for consistent formatting
+    const isReturnInvoice = invoice?.transaction_type === 'supplier_return' || invoice?.transaction_type === 'customer_return';
+    const warrantyText = (invoice.transaction_type === 'customer_return')
+      ? ([...new Set((invoice.items || []).map((item) => (item.remaining_warranty || '').trim()).filter(Boolean))].join(', ') || '—')
+      : (isReturnInvoice ? '' : ([...new Set((invoice.items || [])
+        .map((item) => (item.warranty || '').trim())
+        .filter(Boolean))].join(', ') || '—'));
 
     const itemRows = (invoice.items || []).map((item, i) => `
       <tr>
@@ -214,10 +295,10 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
         <td>
           <table class="item-detail-row">
             <tr>
-              <td class="r">${fmtN(item.price)}</td>
-              ${isReturnInvoice ? '' : `<td class="r">${fmtN(item.discount || 0)}</td><td class="r">${fmtN(item.net_price)}</td>`}
-              <td class="r">${item.quantity}.000</td>
-              <td class="r">${fmtN(item.total)}</td>
+              <td class="r">${fmt(item.price)}</td>
+              ${isReturnInvoice ? '' : `<td class="r">${fmt(item.discount || 0)}</td><td class="r">${fmt(item.net_price)}</td>`}
+              <td class="r">${formatNumber(item.quantity || 0, { maximumFractionDigits: 0 })}</td>
+              <td class="r">${fmt(item.total)}</td>
             </tr>
           </table>
         </td>
@@ -258,8 +339,8 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
 
     const balVal = parseFloat(invoice.balance || 0);
     const balanceDisplay = balVal > 0
-      ? `[-${fmtN(Math.abs(balVal))}]`
-      : `${fmtN(balVal)}`;
+      ? `[-${fmt(Math.abs(balVal))}]`
+      : `${fmt(balVal)}`;
 
     const outstandingSection = balVal !== 0 ? `
       <div class="divider"></div>
@@ -278,38 +359,45 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 10.5px;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11px;
     width: 72mm;
     margin: 0 auto;
     padding: 4mm 3mm 8mm 3mm;
     color: #000;
     background: #fff;
+    font-weight: 500;
+    line-height: 1.25;
+    text-rendering: geometricPrecision;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .center  { text-align: center; }
-  .bold    { font-weight: bold; }
+  .bold    { font-weight: 700; }
   .receipt-header { text-align: center; margin-bottom: 3px; }
-  .shop-name { font-size: 10.5px; font-weight: bold; letter-spacing: 0.3px; }
+  .shop-name { font-size: 11px; font-weight: 700; letter-spacing: 0.1px; }
   .logo-wrap { text-align: center; margin-bottom: 3px; }
   .logo-wrap img { width: 30mm; max-height: 18mm; object-fit: contain; }
-  .shop-address { font-size: 9px; text-align: center; line-height: 1.3; }
-  .shop-phone   { font-size: 9px; text-align: center; line-height: 1.3; }
+  .shop-tagline { font-size: 8px; text-align: center; letter-spacing: 0.6px; }
+  .shop-address { font-size: 9px; text-align: center; line-height: 1.3; font-weight: 500; }
+  .shop-phone   { font-size: 9px; text-align: center; line-height: 1.3; font-weight: 500; }
   .divider-solid { border-top: 1px solid #000; margin: 3px 0; }
   .divider       { border-top: 1px dashed #000; margin: 3px 0; }
   table { width: 100%; border-collapse: collapse; }
-  th, td { padding: 1px 2px; font-size: 10px; }
-  .header-row th { border-bottom: 1px solid #000; font-size: 10px; }
+  th, td { padding: 1px 2px; font-size: 10.5px; }
+  th { font-weight: 700; }
+  .header-row th { border-bottom: 1px solid #000; font-size: 10.5px; }
   .r { text-align: right; }
-  .item-name { font-size: 10.5px; padding-top: 3px; }
+  .item-name { font-size: 10.5px; padding-top: 3px; font-weight: 500; }
   .item-detail-row { width: 100%; }
-  .item-detail-row td { font-size: 10px; padding: 0 2px; }
+  .item-detail-row td { font-size: 10.5px; padding: 0 2px; }
   .summary-table td { padding: 1.5px 2px; font-size: 10.5px; }
-  .summary-table .total-row td { font-weight: bold; font-size: 12px; }
+  .summary-table .total-row td { font-weight: 700; font-size: 12px; }
   .balance-card { margin-top: 4px; padding: 4px 0 3px; text-align: center; border-top: 1px solid #000; border-bottom: 1px solid #000; }
   .balance-card.due { background: #f4f4f4; }
   .balance-card.change { background: #fff8e6; }
-  .balance-label { font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; }
-  .balance-value { font-size: 15px; font-weight: bold; line-height: 1.1; }
+  .balance-label { font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; font-weight: 500; }
+  .balance-value { font-size: 15px; font-weight: 700; line-height: 1.1; }
   .barcode-area { margin-top: 6px; text-align: center; }
   .barcode-svg { width: 100%; height: 60px; display: block; min-height: 50px; }
   .barcode-text { font-size: 8px; letter-spacing: 1px; margin-top: 2px; }
@@ -325,7 +413,7 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
   }
   .screen-actions button:hover { background: #555; }
   @media print {
-    @page { margin: 0; size: 80mm auto; }
+    @page { margin: 0; size: 72mm auto; }
     body { width: 72mm; margin: 0; padding: 4mm 3mm; }
     .screen-actions { display: none !important; }
   }
@@ -343,13 +431,13 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
     <img src="data:image/jpeg;base64,${OSHINI_LOGO_B64}" alt="${shopName}" />
   </div>
 
-  <div style="font-size:9px; text-align:center; margin-top:2px;">Date ${invoiceDate}</div>
-  <div style="font-size:9px; text-align:center;"># ${invoiceNo}</div>
-  ${cashier  ? `<div style="font-size:9px; text-align:center;">Cashier : ${cashier}</div>` : ''}
-  ${customer ? `<div style="font-size:9px; text-align:center;">Customer : ${customer}${custPhone ? '  ' + custPhone : ''}</div>` : ''}
+  <div style="font-size:9.5px; text-align:center; margin-top:2px; font-weight:500;">Date ${invoiceDate}</div>
+  <div style="font-size:9.5px; text-align:center; font-weight:500;"># ${invoiceNo}</div>
+  ${cashier  ? `<div style="font-size:9.5px; text-align:center; font-weight:500;">Cashier : ${cashier}</div>` : ''}
+  ${customer ? `<div style="font-size:9.5px; text-align:center; font-weight:500;">Customer : ${customer}${custPhone ? '  ' + custPhone : ''}</div>` : ''}
 
   <div class="divider"></div>
-  <div class="center bold" style="font-size:11px;">Receipt - Original</div>
+  <div class="center bold" style="font-size:11px; font-weight:700;">Receipt - Original</div>
   <div class="divider"></div>
 
   <!-- Items header -->
@@ -372,11 +460,11 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
 
   <!-- Summary -->
   <table class="summary-table">
-    <tr><td>Sub Total</td><td class="r">${fmtN(invoice.subtotal)}</td></tr>
-    ${isReturnInvoice ? '' : `<tr><td>Total Discount</td><td class="r">${fmtN(invoice.discount)}</td></tr>`}
+    <tr><td>Sub Total</td><td class="r">${fmt(invoice.subtotal)}</td></tr>
+    ${isReturnInvoice ? '' : `<tr><td>Total Discount</td><td class="r">${fmt(invoice.discount)}</td></tr>`}
     ${isReturnInvoice ? '' : `<tr><td>Warranty</td><td class="r">${warrantyText}</td></tr>`}
-    <tr class="total-row"><td>Total</td><td class="r">${fmtN(invoice.total)}</td></tr>
-    <tr><td>Paid Cash</td><td class="r">${fmtN(invoice.paid_cash)}</td></tr>
+    <tr class="total-row"><td>Total</td><td class="r">${fmt(invoice.total)}</td></tr>
+    <tr><td>Paid Cash</td><td class="r">${fmt(invoice.paid_cash)}</td></tr>
     <tr class="balance-row"><td>Balance</td><td class="r">${balanceDisplay}</td></tr>
   </table>
 
@@ -385,7 +473,7 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
   ${balVal !== 0 ? `
   <div class="balance-card ${balVal > 0 ? 'due' : 'change'}">
     <div class="balance-label">${balVal > 0 ? 'Balance Due' : 'Change'}</div>
-    <div class="balance-value">Rs. ${fmtN(Math.abs(balVal))}</div>
+    <div class="balance-value">Rs. ${fmt(Math.abs(balVal))}</div>
   </div>
   ` : ''}
 
@@ -448,7 +536,8 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
       if (data && data.action === 'saveInvoice') {
         const invoice = data.invoice;
         const printAfter = data.printAfter;
-        const isReturn = invoice?.status === 'supplier_return' || invoice?.transaction_type === 'supplier_return';
+        const isReturn = invoice?.status === 'supplier_return' || invoice?.status === 'customer_return' ||
+             invoice?.transaction_type === 'supplier_return' || invoice?.transaction_type === 'customer_return';
         // perform save now
         setStatusMsg('💾 Saving...');
         const saveResult = await window.electronAPI.saveInvoice(invoice);
@@ -504,17 +593,7 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
       const d = ev.data || {};
       if (d && d.action === 'billing:scan' && d.barcode) {
         const bc = barcodeText(d.barcode);
-        let prod = productsRef.current.find(p => barcodeText(p.barcode) === bc);
-        if (!prod && isElectron) {
-          const direct = await window.electronAPI.getProduct(bc);
-          if (direct.success && direct.product) {
-            prod = direct.product;
-            setProducts(prev => {
-              const exists = prev.some(p => barcodeText(p.barcode) === bc);
-              return exists ? prev : [direct.product, ...prev];
-            });
-          }
-        }
+        const prod = await resolveScannedProduct(bc);
         if (prod) {
           addToCart(prod);
         } else {
@@ -528,7 +607,7 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
       window.removeEventListener('message', onGlobal);
       window.removeEventListener('products:changed', onProductsChanged);
     };
-  }, [filePath, columnConfig, sheetName, selectedPrinter, shopConfig, refreshProducts, isElectron]);
+  }, [filePath, columnConfig, sheetName, selectedPrinter, shopConfig, refreshProducts, isElectron, resolveScannedProduct]);
 
   const reprintInvoice = async (invoiceNo) => {
     const r = await window.electronAPI.getInvoice(invoiceNo);
@@ -543,10 +622,12 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
   };
 
   // Filtered product list
-  const filteredProducts = products.filter(p =>
-    !searchProd || (p.name || '').toLowerCase().includes(searchProd.toLowerCase())
-      || (p.barcode || '').includes(searchProd)
-  );
+  const filteredProducts = products.filter(p => {
+    if (p.scan_mode === 'inventory_only') return false;
+    if (!searchProd) return true;
+    return (p.name || '').toLowerCase().includes(searchProd.toLowerCase())
+      || (p.barcode || '').includes(searchProd);
+  });
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -601,6 +682,13 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
                 🧾 Sale
               </button>
               <button
+                className={`billing-nav-btn ${transactionMode === 'customer_return' ? 'active' : ''}`}
+                onClick={() => setTransactionMode('customer_return')}
+                type="button"
+              >
+                ↩️ Customer Return
+              </button>
+              <button
                 className={`billing-nav-btn ${transactionMode === 'supplier_return' ? 'active' : ''}`}
                 onClick={() => setTransactionMode('supplier_return')}
                 type="button"
@@ -637,8 +725,9 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
                     <tr>
                       <th>Item</th>
                       <th>Price</th>
-                      {!isSupplierReturn && <th>Disc.</th>}
-                      {!isSupplierReturn && <th>Warranty</th>}
+                      {!(isSupplierReturn || isCustomerReturn) && <th>Disc.</th>}
+                      {isCustomerReturn && <th>Remaining Warranty</th>}
+                      {!isSupplierReturn && !isCustomerReturn && <th>Warranty</th>}
                       <th>Qty</th>
                       <th>Total</th>
                       <th></th>
@@ -652,13 +741,21 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
                           <input type="number" className="cart-num-input" value={item.price}
                             onChange={e => updateCartItem(item.barcode, 'price', e.target.value)} />
                         </td>
-                        {!isSupplierReturn && (
+                        {!(isSupplierReturn || isCustomerReturn) && (
                           <td>
                             <input type="number" className="cart-num-input" value={item.discount}
                               onChange={e => updateCartItem(item.barcode, 'discount', e.target.value)} />
                           </td>
                         )}
-                        {!isSupplierReturn && (
+                        {isCustomerReturn && (
+                          <td>
+                            <select className="bill-input" value={item.remaining_warranty || 'No warranty'}
+                              onChange={e => updateCartItem(item.barcode, 'remaining_warranty', e.target.value)}>
+                              {WARRANTY_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
+                            </select>
+                          </td>
+                        )}
+                        {!isSupplierReturn && !isCustomerReturn && (
                           <td>
                             <select className="bill-input" value={item.warranty || '7 days'}
                               onChange={e => updateCartItem(item.barcode, 'warranty', e.target.value)}>

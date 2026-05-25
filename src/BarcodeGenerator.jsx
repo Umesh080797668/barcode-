@@ -4,6 +4,7 @@
  * Uses JsBarcode (loaded via CDN script tag injected once) for rendering.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { formatCurrency, formatNumber } from './utils/format';
 
 // ── load JsBarcode from CDN once ────────────────────────────────────────────
 let jsBarcodeReady = false;
@@ -59,6 +60,16 @@ async function apiCall(method, ...args) {
     }
     return { success: true, id: p.id, barcode: p.barcode };
   }
+  if (method === 'syncProduct') {
+    const p = args[0];
+    const idx = memStore.products.findIndex(x => String(x.barcode) === String(p?.barcode));
+    if (idx >= 0) memStore.products[idx] = { ...memStore.products[idx], ...p };
+    else memStore.products.unshift({ ...p, id: Date.now(), created_at: new Date().toISOString() });
+    return { success: true, barcode: p?.barcode };
+  }
+  if (method === 'syncInventoryProduct') {
+    return { success: true };
+  }
   if (method === 'deleteProduct') {
     memStore.products = memStore.products.filter(x => x.id !== args[0]);
     return { success: true };
@@ -103,7 +114,7 @@ function renderBarcode(svgEl, value, opts = {}) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════════════════════
-export default function BarcodeGenerator() {
+export default function BarcodeGenerator({ filePath, sheetName, columnConfig }) {
   const [view, setView]           = useState('list'); // 'list' | 'create' | 'preview' | 'fields'
   const [products, setProducts]   = useState([]);
   const [customFields, setCF]     = useState([]);
@@ -156,6 +167,16 @@ export default function BarcodeGenerator() {
     searchTimer.current = setTimeout(() => loadAll(v), 300);
   };
 
+  const filteredProducts = products.filter((product) => {
+    if (!search.trim()) return true;
+    const query = search.trim().toLowerCase();
+    return [product.barcode, product.name, product.sku, product.category, product.scan_mode]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .includes(query);
+  });
+
   // ── generate new barcode ─────────────────────────────────────────────────
   const handleNew = async () => {
     const res = await apiCall('generateBarcode');
@@ -192,6 +213,19 @@ export default function BarcodeGenerator() {
     const res = await apiCall('saveProduct', editProduct);
     setSaving(false);
     if (res.success) {
+      if (filePath) {
+        await apiCall('syncInventoryProduct', {
+          filePath,
+          sheetName,
+          columnConfig,
+          product: {
+            ...editProduct,
+            quantity: Number(editProduct.quantity) || 0,
+            price: Number(editProduct.price) || 0,
+            scan_mode: editProduct.scan_mode || 'normal',
+          },
+        });
+      }
       showToast('Product saved ✓');
       await loadAll();
       notifyProductsChanged();
@@ -222,7 +256,7 @@ export default function BarcodeGenerator() {
         <div class="label">
           ${printRef.current?.outerHTML || ''}
           ${editProduct?.name ? `<div class="pname">${editProduct.name}</div>` : ''}
-          ${editProduct?.price ? `<div class="pprice">Rs. ${parseFloat(editProduct.price).toFixed(2)}</div>` : ''}
+          ${editProduct?.price ? `<div class="pprice">Rs. ${formatCurrency(editProduct.price)}</div>` : ''}
         </div>`);
     }
     printWin.document.write(`
@@ -350,16 +384,16 @@ export default function BarcodeGenerator() {
             />
           </div>
 
-          {products.length === 0 ? (
+          {filteredProducts.length === 0 ? (
             <div className="bc-empty">
               <div className="bc-empty-icon">▊▌▋▍</div>
-              <h3>No products yet</h3>
-              <p>Click "New Barcode" to create your first product barcode.</p>
+              <h3>{search.trim() ? 'No matching products' : 'No products yet'}</h3>
+              <p>{search.trim() ? 'Try a different search term.' : 'Click "New Barcode" to create your first product barcode.'}</p>
               <button className="bc-btn-primary" onClick={handleNew}><IcoPlus /> New Barcode</button>
             </div>
           ) : (
             <div className="bc-product-grid">
-              {products.map(p => (
+              {filteredProducts.map(p => (
                 <ProductCard key={p.id} product={p} onClick={() => handleOpen(p)} />
               ))}
             </div>
@@ -439,7 +473,7 @@ export default function BarcodeGenerator() {
               {editProduct.sku  && <div className="bc-preview-sku">SKU: {editProduct.sku}</div>}
               <svg ref={svgRef} className="bc-preview-svg" />
               {editProduct.price && (
-                <div className="bc-preview-price">Rs. {parseFloat(editProduct.price||0).toFixed(2)}</div>
+                <div className="bc-preview-price">Rs. {formatCurrency(editProduct.price)}</div>
               )}
             </div>
 
@@ -580,6 +614,9 @@ function ProductCard({ product, onClick }) {
     <div className="bc-pcard" onClick={onClick}>
       <svg ref={svgEl} className="bc-pcard-svg" />
       <div className="bc-pcard-body">
+        <div className={`bc-mode-pill ${product.scan_mode === 'inventory_only' ? 'inventory-only' : 'normal'}`}>
+          {product.scan_mode === 'inventory_only' ? 'Inventory only' : 'Normal'}
+        </div>
         <div className="bc-pcard-meta" style={{color: '#111827', fontWeight: 600}}>Qty: {product.quantity || 0}</div>
       </div>
     </div>
@@ -589,7 +626,7 @@ function ProductCard({ product, onClick }) {
 function StatPill({ label, value }) {
   return (
     <div className="bc-stat-pill">
-      <span className="bc-stat-val">{value}</span>
+      <span className="bc-stat-val">{typeof value === 'number' ? formatNumber(value, { maximumFractionDigits: 0 }) : String(value)}</span>
       <span className="bc-stat-label">{label}</span>
     </div>
   );

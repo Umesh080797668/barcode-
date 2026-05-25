@@ -159,6 +159,50 @@ function flushPendingForFile(filePath) {
         workbook.Sheets[sheetName] = newSheet;
         writeWorkbookWithRetry(workbook, filePath);
         removePendingFile(pfile);
+      } else if (op.type === 'syncProduct') {
+        if (!fs.existsSync(filePath)) { removePendingFile(pfile); continue; }
+        const workbook = XLSX.readFile(filePath);
+        const sheetName = op.sheetName || 'Sheet1';
+        if (!workbook.Sheets[sheetName]) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([]), sheetName);
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+
+        const barcodeCol = op.columnConfig?.barcodeColumn || 'Barcode';
+        const qtyCol = op.columnConfig?.quantityColumn || 'Quantity';
+        const tsCol = op.columnConfig?.timestampColumn || 'Last Scanned';
+        const extraCols = op.columnConfig?.extraColumns || [];
+        const barcode = String(op.product?.barcode ?? '');
+        const idx = rows.findIndex(r => String(r[barcodeCol]) === barcode);
+        const nextRow = idx >= 0 ? { ...rows[idx] } : {};
+
+        nextRow[barcodeCol] = op.product?.barcode;
+        if (op.product?.name !== undefined) nextRow.Name = op.product.name;
+        if (op.product?.price !== undefined) nextRow.Price = op.product.price;
+        if (op.product?.quantity !== undefined) nextRow[qtyCol] = op.product.quantity;
+        if (op.product?.scan_mode !== undefined) {
+          nextRow['Scan Mode'] = op.product.scan_mode === 'inventory_only' ? 'Inventory only' : 'Normal';
+          nextRow.scan_mode = op.product.scan_mode;
+        }
+        nextRow[tsCol] = new Date().toLocaleString();
+
+        if (op.product?.custom_fields && typeof op.product.custom_fields === 'object') {
+          for (const [key, value] of Object.entries(op.product.custom_fields)) {
+            nextRow[key] = value;
+          }
+        }
+        for (const extra of extraCols) {
+          if (extra.name && nextRow[extra.name] === undefined) {
+            nextRow[extra.name] = extra.defaultValue || '';
+          }
+        }
+
+        if (idx >= 0) rows[idx] = nextRow;
+        else rows.push(nextRow);
+
+        const newSheet = XLSX.utils.json_to_sheet(rows, op.columnConfig?.columnsOrder ? { header: op.columnConfig.columnsOrder } : {});
+        workbook.Sheets[sheetName] = newSheet;
+        writeWorkbookWithRetry(workbook, filePath);
+        removePendingFile(pfile);
       } else {
         // unknown op - drop it
         removePendingFile(pfile);
@@ -244,15 +288,17 @@ function updateExcel(filePath, barcode, columnConfig, sheetName = 'Sheet1', prod
     let isDuplicate = false;
 
     if (existingIndex >= 0) {
-      // If this barcode exists in the product DB, treat re-adding as an error to avoid
-      // duplicate rows and inconsistent quantities between barcode DB and Excel.
-      if (product) {
-        return { success: false, error: 'Product already exists in inventory' }; 
-      }
-
-      // For unknown products (no product metadata), keep legacy behavior of incrementing quantity
       rows[existingIndex][qtyCol] = (rows[existingIndex][qtyCol] || 0) + 1;
       rows[existingIndex][tsCol]  = new Date().toLocaleString();
+
+      if (product) {
+        if (product.name !== undefined && product.name !== null) {
+          rows[existingIndex]['Name'] = product.name;
+        }
+        if (product.price !== undefined && product.price !== null) {
+          rows[existingIndex]['Price'] = product.price;
+        }
+      }
 
       for (const extra of extraCols) {
         if (extra.name) {
@@ -261,10 +307,8 @@ function updateExcel(filePath, barcode, columnConfig, sheetName = 'Sheet1', prod
       }
       isDuplicate = true;
     } else {
-      // If product exists, prefill name/price and use product.quantity if provided
-      const qtyVal = product && (product.quantity !== undefined && product.quantity !== null)
-        ? Number(product.quantity)
-        : 1;
+      // New scan: start with a single unit and enrich the row with product details when available.
+      const qtyVal = 1;
 
       const newObj = {
         [barcodeCol]: barcode,
@@ -410,7 +454,73 @@ function rewriteExcel(filePath, sheetName, rows, columnsOrder) {
   }
 }
 
+function syncProductRecord(filePath, product, columnConfig = {}, sheetName = 'Sheet1') {
+  try {
+    if (!fs.existsSync(filePath)) return { success: false, error: 'File not found.' };
+    try { flushPendingForFile(filePath); } catch (e) { /* ignore */ }
+    const workbook = XLSX.readFile(filePath);
+    if (!workbook.Sheets[sheetName]) {
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([]), sheetName);
+    }
+
+    redoStack = [];
+    recordUndo(filePath);
+
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    const barcodeCol = columnConfig.barcodeColumn || 'Barcode';
+    const qtyCol = columnConfig.quantityColumn || 'Quantity';
+    const tsCol = columnConfig.timestampColumn || 'Last Scanned';
+    const extraCols = columnConfig.extraColumns || [];
+    const barcode = String(product?.barcode ?? '');
+    const idx = rows.findIndex(r => String(r[barcodeCol]) === barcode);
+    const nextRow = idx >= 0 ? { ...rows[idx] } : {};
+
+    nextRow[barcodeCol] = product?.barcode;
+    if (product?.name !== undefined) nextRow.Name = product.name;
+    if (product?.price !== undefined) nextRow.Price = product.price;
+    if (product?.quantity !== undefined) nextRow[qtyCol] = product.quantity;
+    if (product?.scan_mode !== undefined) {
+      nextRow['Scan Mode'] = product.scan_mode === 'inventory_only' ? 'Inventory only' : 'Normal';
+      nextRow.scan_mode = product.scan_mode;
+    }
+    nextRow[tsCol] = new Date().toLocaleString();
+
+    if (product?.custom_fields && typeof product.custom_fields === 'object') {
+      for (const [key, value] of Object.entries(product.custom_fields)) {
+        nextRow[key] = value;
+      }
+    }
+    for (const extra of extraCols) {
+      if (extra.name && nextRow[extra.name] === undefined) {
+        nextRow[extra.name] = extra.defaultValue || '';
+      }
+    }
+
+    if (idx >= 0) rows[idx] = nextRow;
+    else rows.push(nextRow);
+
+    const newSheet = XLSX.utils.json_to_sheet(rows, columnConfig.columnsOrder ? { header: columnConfig.columnsOrder } : {});
+    workbook.Sheets[sheetName] = newSheet;
+    writeWorkbookWithRetry(workbook, filePath);
+    latestRowsCache = rows;
+    return { success: true, rows };
+  } catch (err) {
+    if (isBusyWriteError(err)) {
+      try {
+        savePendingOperation(filePath, { type: 'syncProduct', product, columnConfig, sheetName });
+        return { success: true, queued: true, message: 'File busy — product sync queued' };
+      } catch (e) {
+        return { success: false, error: 'File busy and failed to queue product sync' };
+      }
+    }
+    return { success: false, error: err.message };
+  }
+}
+
 module.exports = { readExcel, updateExcel, undoLastScan, redoLastScan, exportToCSV, rewriteExcel, flushPendingForFile };
+module.exports.syncProductRecord = syncProductRecord;
 
 // Flush all pending operation files in the temp folder
 function flushAllPending() {

@@ -1,12 +1,15 @@
 {
   "name": "Barcode-Manager",
+  "author": "imantha",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "main": "electron/main.cjs",
+  "description": "POS service for the Oshini Mobile store",
   "scripts": {
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build:exe": "vite build && electron-builder -w",
+    "build:installer": "vite build && electron-builder --win nsis",
     "build:linux": "vite build && electron-builder -l",
     "build": "vite build && electron-builder",
     "start": "electron .",
@@ -17,12 +20,14 @@
   "build": {
     "appId": "com.scanvault.app",
     "productName": "ScanVault",
+    "icon": "build/icon",
     "asar": true,
     "directories": {
       "output": "dist-electron"
     },
     "files": [
       "dist/**/*",
+      "build/**/*",
       "electron/**/*",
       "package.json"
     ],

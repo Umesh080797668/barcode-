@@ -323,6 +323,26 @@ button { cursor: pointer; font-family: var(--font-sans); outline: none; }
   overflow-x: hidden;
 }
 
+/* Responsive: collapse sidebar for narrow screens and stack panels */
+@media (max-width: 900px) {
+  :root { --sidebar-w: 220px; }
+}
+
+@media (max-width: 720px) {
+  .app-body { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; order: 0; border-right: none; border-bottom: 1px solid var(--border); }
+  .main-panel { order: 1; }
+  .topbar-center { display: none; }
+  .last-scan-popup { right: 12px; left: 12px; bottom: 12px; min-width: auto; max-width: calc(100% - 24px); }
+  .tabs { display: flex; gap: 6px; overflow-x: auto; }
+  .sidebar-section { padding: 10px 12px; }
+}
+
+@media (min-width: 1400px) {
+  /* wide screens: slightly increase sidebar for multi-panel feel */
+  :root { --sidebar-w: 300px; }
+}
+
 .sidebar::-webkit-scrollbar { width: 4px; }
 .sidebar::-webkit-scrollbar-track { background: transparent; }
 .sidebar::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
@@ -336,6 +356,66 @@ button { cursor: pointer; font-family: var(--font-sans); outline: none; }
 }
 
 .sidebar-section:last-child { border-bottom: none; }
+
+.inventory-mode-section { padding-top: 14px; }
+
+.inventory-mode-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mode-toggle-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.mode-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-height: 56px;
+  padding: 10px 11px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-lg);
+  color: var(--text);
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.mode-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+.mode-chip.active {
+  background: linear-gradient(180deg, rgba(99,102,241,0.22), rgba(99,102,241,0.10));
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(99,102,241,0.28) inset;
+}
+
+.mode-chip-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+}
+
+.mode-chip-sub {
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+.mode-chip.active .mode-chip-sub {
+  color: var(--accent2);
+}
+
+.inventory-mode-card .field-hint {
+  margin-top: 1px;
+}
 
 .sidebar-feed {
   flex: 1;
@@ -890,6 +970,119 @@ button { cursor: pointer; font-family: var(--font-sans); outline: none; }
   font-size: 11px;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.update-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) minmax(160px, 0.6fr);
+  gap: 14px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.update-meta {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+.update-meta-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted2);
+  font-family: var(--font-mono);
+  margin-bottom: 5px;
+}
+
+.update-meta-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.update-meta-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted2);
+  line-height: 1.5;
+}
+
+.update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.update-current-version {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.update-status {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.update-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+
+.update-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.update-card-subtitle {
+  font-size: 11px;
+  color: var(--muted2);
+  margin-bottom: 12px;
+}
+
+.update-card-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+
+.update-card-line:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.update-card-line span {
+  color: var(--muted2);
+}
+
+.update-card-line strong {
+  color: var(--text);
+  text-align: right;
+}
+
+.update-card-body {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .update-grid {
+    grid-template-columns: 1fr;
+  }
 }
 /* ═══════════════════════════════════════════════════════════════════════
    BARCODE GENERATOR MODULE

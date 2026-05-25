@@ -36,12 +36,19 @@ class BarcodeDB {
           sku           TEXT,
           price         REAL,
           quantity      INTEGER DEFAULT 0,
+          scan_mode     TEXT DEFAULT 'normal',
           category      TEXT,
           created_at    TEXT DEFAULT CURRENT_TIMESTAMP,
           updated_at    TEXT DEFAULT CURRENT_TIMESTAMP,
           custom_fields TEXT
         );
       `);
+
+      const productColumns = this.db.exec(`PRAGMA table_info(products)`);
+      const hasScanMode = productColumns?.[0]?.values?.some((row) => row[1] === 'scan_mode');
+      if (!hasScanMode) {
+        this.db.run(`ALTER TABLE products ADD COLUMN scan_mode TEXT DEFAULT 'normal'`);
+      }
 
       this.db.run(`
         CREATE TABLE IF NOT EXISTS custom_fields (
@@ -91,7 +98,18 @@ class BarcodeDB {
     }
     stmt.free();
 
-    return results.map(row => ({
+    const search = String(opts?.search || '').trim().toLowerCase();
+    const filtered = search
+      ? results.filter((row) => {
+          const text = [row.barcode, row.name, row.sku, row.category, row.scan_mode]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return text.includes(search);
+        })
+      : results;
+
+    return filtered.map(row => ({
       ...row,
       custom_fields: row.custom_fields ? JSON.parse(row.custom_fields) : {}
     }));
@@ -135,12 +153,13 @@ class BarcodeDB {
     }
 
     const customFieldsStr = product.custom_fields ? JSON.stringify(product.custom_fields) : '{}';
+    const scanMode = product.scan_mode || 'normal';
 
     const existing = await this.getProduct(product.barcode);
     if (existing) {
       const stmt = this.db.prepare(`
         UPDATE products 
-        SET name = ?, sku = ?, price = ?, quantity = ?, category = ?, custom_fields = ?, updated_at = CURRENT_TIMESTAMP
+        SET name = ?, sku = ?, price = ?, quantity = ?, scan_mode = ?, category = ?, custom_fields = ?, updated_at = CURRENT_TIMESTAMP
         WHERE barcode = ?
       `);
       stmt.run([
@@ -148,6 +167,7 @@ class BarcodeDB {
         product.sku || null,
         product.price || 0,
         product.quantity || 0,
+        scanMode,
         product.category || null,
         customFieldsStr,
         product.barcode
@@ -155,8 +175,8 @@ class BarcodeDB {
       stmt.free();
     } else {
       const stmt = this.db.prepare(`
-        INSERT INTO products (barcode, name, sku, price, quantity, category, custom_fields)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO products (barcode, name, sku, price, quantity, scan_mode, category, custom_fields)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run([
         product.barcode,
@@ -164,6 +184,7 @@ class BarcodeDB {
         product.sku || null,
         product.price || 0,
         product.quantity || 0,
+        scanMode,
         product.category || null,
         customFieldsStr
       ]);
@@ -172,6 +193,65 @@ class BarcodeDB {
 
     this._saveDisk();
     return { success: true, barcode: product.barcode };
+  }
+
+  async syncProductRecord(product) {
+    await this._ensureReady();
+    if (!this.db) throw new Error('Database not initialized');
+    if (!product?.barcode) {
+      return { success: false, error: 'Barcode is required' };
+    }
+
+    const existing = await this.getProduct(product.barcode);
+    const merged = {
+      barcode: product.barcode,
+      name: product.name ?? existing?.name ?? null,
+      sku: product.sku ?? existing?.sku ?? null,
+      price: product.price ?? existing?.price ?? 0,
+      quantity: product.quantity ?? existing?.quantity ?? 0,
+      scan_mode: product.scan_mode ?? existing?.scan_mode ?? 'normal',
+      category: product.category ?? existing?.category ?? null,
+      custom_fields: product.custom_fields ?? existing?.custom_fields ?? {},
+    };
+
+    const customFieldsStr = merged.custom_fields ? JSON.stringify(merged.custom_fields) : '{}';
+    if (existing) {
+      const stmt = this.db.prepare(`
+        UPDATE products
+        SET name = ?, sku = ?, price = ?, quantity = ?, scan_mode = ?, category = ?, custom_fields = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE barcode = ?
+      `);
+      stmt.run([
+        merged.name,
+        merged.sku,
+        merged.price || 0,
+        merged.quantity || 0,
+        merged.scan_mode,
+        merged.category,
+        customFieldsStr,
+        merged.barcode,
+      ]);
+      stmt.free();
+    } else {
+      const stmt = this.db.prepare(`
+        INSERT INTO products (barcode, name, sku, price, quantity, scan_mode, category, custom_fields)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run([
+        merged.barcode,
+        merged.name,
+        merged.sku,
+        merged.price || 0,
+        merged.quantity || 0,
+        merged.scan_mode,
+        merged.category,
+        customFieldsStr,
+      ]);
+      stmt.free();
+    }
+
+    this._saveDisk();
+    return { success: true, barcode: merged.barcode };
   }
 
   async deleteProduct(idOrBarcode) {
@@ -296,6 +376,7 @@ async _ensureInvoiceTables() {
       net_price   REAL DEFAULT 0,
       total       REAL DEFAULT 0,
       warranty    TEXT DEFAULT '',
+      remaining_warranty TEXT DEFAULT '',
       FOREIGN KEY (invoice_id) REFERENCES invoices(id)
     );
   `);
@@ -304,6 +385,10 @@ async _ensureInvoiceTables() {
   const hasWarranty = itemColumns.length > 0 && itemColumns[0].values.some(row => row[1] === 'warranty');
   if (!hasWarranty) {
     this.db.run("ALTER TABLE invoice_items ADD COLUMN warranty TEXT DEFAULT ''");
+  }
+  const hasRemaining = itemColumns.length > 0 && itemColumns[0].values.some(row => row[1] === 'remaining_warranty');
+  if (!hasRemaining) {
+    this.db.run("ALTER TABLE invoice_items ADD COLUMN remaining_warranty TEXT DEFAULT ''");
   }
 
   const invoiceColumns = this.db.exec("PRAGMA table_info(invoices)");
@@ -360,8 +445,8 @@ async saveInvoice(invoice) {
   // Insert items
   for (const item of (invoice.items || [])) {
     const iStmt = this.db.prepare(`
-      INSERT INTO invoice_items (invoice_id, barcode, name, price, quantity, discount, net_price, total, warranty)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoice_items (invoice_id, barcode, name, price, quantity, discount, net_price, total, warranty, remaining_warranty)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     iStmt.run([
       invoiceId,
@@ -372,17 +457,22 @@ async saveInvoice(invoice) {
       item.discount || 0,
       item.net_price || item.price || 0,
       item.total || 0,
-      item.warranty || ''
+      item.warranty || '',
+      item.remaining_warranty || ''
     ]);
     iStmt.free();
 
     // Reduce stock quantity
     if (item.barcode) {
-      const uStmt = this.db.prepare(`
-        UPDATE products SET quantity = MAX(0, quantity - ?) WHERE barcode = ?
-      `);
-      uStmt.run([item.quantity || 1, item.barcode]);
-      uStmt.free();
+      if (invoice.transaction_type === 'customer_return') {
+        const uStmt = this.db.prepare(`UPDATE products SET quantity = quantity + ? WHERE barcode = ?`);
+        uStmt.run([item.quantity || 1, item.barcode]);
+        uStmt.free();
+      } else {
+        const uStmt = this.db.prepare(`UPDATE products SET quantity = MAX(0, quantity - ?) WHERE barcode = ?`);
+        uStmt.run([item.quantity || 1, item.barcode]);
+        uStmt.free();
+      }
     }
   }
 

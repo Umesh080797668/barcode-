@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { formatCurrency, formatNumber } from './utils/format';
 import './App.css';
 import ScanVaultTutorial from './ScanVaultTutorial';
 import BarcodeGenerator from './BarcodeGenerator';
 import BillingModule from './BillingModule';
 
 export default function App() {
+  const UPDATE_REPO = 'Umesh080797668/barcode-';
   const [filePath, setFilePath] = useState('');
   const [sheetName, setSheetName] = useState('Sheet1');
   const [availableSheets, setAvailableSheets] = useState(['Sheet1']);
@@ -18,10 +20,16 @@ export default function App() {
   const [scanFlash, setScanFlash] = useState(null);
   const [totalScansToday, setTotalScansToday] = useState(0);
   const [uniqueItems, setUniqueItems] = useState(0);
+  const [productsCount, setProductsCount] = useState(0);
   const [newSheetInput, setNewSheetInput] = useState('');
   const [showNewSheetInput, setShowNewSheetInput] = useState(false);
   const [manualInput, setManualInput] = useState('');
+  const [inventoryAddMode, setInventoryAddMode] = useState('inventory_only');
   const [lastScanPopup, setLastScanPopup] = useState(null);
+  const [appVersion, setAppVersion] = useState('0.0.0');
+  const [updateStatus, setUpdateStatus] = useState('Idle');
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
 
   const [barcodeColName] = useState('Barcode');
   const [quantityColName] = useState('Quantity');
@@ -41,6 +49,14 @@ export default function App() {
   const statusTimer = useRef(null);
   const popupTimer = useRef(null);
   const tableBodyRef = useRef(null);
+
+  useEffect(() => {
+    if (window.electronAPI?.getAppVersion) {
+      window.electronAPI.getAppVersion().then((result) => {
+        if (result?.success && result.version) setAppVersion(result.version);
+      });
+    }
+  }, []);
 
   const showLastScanPopup = useCallback((entry) => {
     if (activeTab !== 'data') return;
@@ -80,6 +96,38 @@ export default function App() {
 
   useEffect(() => { loadData(); }, [filePath, sheetName]);
 
+  // Keep product count in sync when product DB changes (barcode creator)
+  useEffect(() => {
+    const onProductsChanged = async () => {
+      if (!window.electronAPI) return;
+      try {
+        const r = await window.electronAPI.getProducts();
+        if (r && r.success) setProductsCount((r.products || []).length);
+      } catch (e) { /* ignore */ }
+    };
+    window.addEventListener('products:changed', onProductsChanged);
+    // initial
+    onProductsChanged();
+    return () => window.removeEventListener('products:changed', onProductsChanged);
+  }, []);
+
+  const handleScannedBarcode = async (barcode, source = 'scan') => {
+    if (!window.electronAPI) {
+      await processBarcode(barcode, source);
+      return;
+    }
+
+    if (activeTab === 'billing' || inventoryAddMode === 'normal') {
+      if (activeTab !== 'billing') {
+        setActiveTab('billing');
+      }
+      window.postMessage({ action: 'billing:scan', barcode }, '*');
+      return;
+    }
+
+    await processBarcode(barcode, source);
+  };
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
@@ -88,12 +136,7 @@ export default function App() {
         barcodeBuffer.current = '';
         clearTimeout(bufferTimer.current);
         if (barcode.trim().length > 2) {
-          if (activeTab === 'billing') {
-            // route scan to billing UI to add to cart
-            window.postMessage({ action: 'billing:scan', barcode }, '*');
-          } else {
-            processBarcode(barcode, 'scan');
-          }
+          void handleScannedBarcode(barcode, 'scan');
         }
       } else if (e.key.length === 1) {
         barcodeBuffer.current += e.key;
@@ -164,6 +207,22 @@ export default function App() {
       setTotalScansToday(p => p + 1);
       setTempStatus(result.isDuplicate ? 'duplicate' : 'success',
         result.isDuplicate ? `+1 qty: ${barcode}` : `New item: ${barcode}`);
+
+      const row = (result.rows || []).find(r => String(r[barcodeColName]) === String(barcode)) || null;
+      if (row) {
+        const currentProduct = await window.electronAPI.getProduct(barcode);
+        const payload = {
+          barcode,
+          name: row.Name ?? row.name ?? currentProduct?.product?.name ?? null,
+          price: row.Price ?? row.price ?? currentProduct?.product?.price ?? 0,
+          quantity: Number(row[quantityColName] ?? row.Quantity ?? currentProduct?.product?.quantity ?? 0),
+          scan_mode: inventoryAddMode,
+          sku: currentProduct?.product?.sku ?? row.sku ?? null,
+          category: currentProduct?.product?.category ?? row.category ?? null,
+          custom_fields: currentProduct?.product?.custom_fields ?? {},
+        };
+        await window.electronAPI.syncProduct(payload);
+      }
     } else {
       setTempStatus('error', result.error || 'Update failed');
     }
@@ -196,9 +255,84 @@ export default function App() {
     else setTempStatus('error', r.error || 'Export cancelled');
   };
 
+  const checkForUpdates = async () => {
+    const repo = UPDATE_REPO.trim();
+    if (!repo) {
+      setUpdateStatus('Update source is not configured');
+      return;
+    }
+
+    setUpdateBusy(true);
+    setUpdateStatus('Checking GitHub releases...');
+    setUpdateInfo(null);
+
+    try {
+      const response = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+        headers: { Accept: 'application/vnd.github+json' },
+      });
+
+      if (!response.ok) {
+        throw new Error(`GitHub returned ${response.status}`);
+      }
+
+      const release = await response.json();
+      const asset = (release.assets || []).find((item) => /\.(exe|AppImage)$/i.test(item.name) && !/blockmap/i.test(item.name))
+        || (release.assets || []).find((item) => !/blockmap/i.test(item.name));
+      const currentVersion = String(appVersion || '').replace(/^v/i, '');
+      const latestVersion = String(release.tag_name || '').replace(/^v/i, '');
+      const isUpToDate = currentVersion && latestVersion && currentVersion === latestVersion;
+
+      const info = {
+        tag: release.tag_name || '',
+        name: release.name || release.tag_name || 'Latest release',
+        body: release.body || '',
+        assetName: asset?.name || '',
+        assetUrl: asset?.browser_download_url || '',
+        currentVersion,
+        latestVersion,
+        publishedAt: release.published_at || '',
+        updateAvailable: !isUpToDate,
+      };
+
+      setUpdateInfo(info);
+      setUpdateStatus(isUpToDate ? 'You are on the latest version' : `Update available: ${info.latestVersion || info.tag}`);
+    } catch (error) {
+      setUpdateStatus(error.message || 'Unable to check updates');
+    } finally {
+      setUpdateBusy(false);
+    }
+  };
+
+  const downloadAndInstallUpdate = async () => {
+    if (!window.electronAPI || !updateInfo?.assetUrl) {
+      setUpdateStatus('No downloadable update found');
+      return;
+    }
+
+    setUpdateBusy(true);
+    setUpdateStatus('Downloading update...');
+
+    try {
+      const result = await window.electronAPI.downloadAndInstallUpdate({
+        url: updateInfo.assetUrl,
+        filename: updateInfo.assetName,
+      });
+
+      if (result.success) {
+        setUpdateStatus(result.launched
+          ? 'Installer launched. Follow the setup wizard.'
+          : `Downloaded to ${result.downloadedPath}`);
+      } else {
+        setUpdateStatus(result.error || 'Download failed');
+      }
+    } finally {
+      setUpdateBusy(false);
+    }
+  };
+
   const handleManualScan = () => {
     const val = manualInput;
-    if (val.trim().length > 0) { processBarcode(val, 'manual'); setManualInput(''); }
+    if (val.trim().length > 0) { void handleScannedBarcode(val, 'manual'); setManualInput(''); }
   };
 
   const filteredRows = rows.filter(row =>
@@ -263,7 +397,7 @@ export default function App() {
   const orderedNames = columnsList.map(c => c.name).filter(n => n.trim());
   const allHeadersSet = new Set(orderedNames);
   headers.forEach(h => allHeadersSet.add(h));
-  const displayHeaders = Array.from(allHeadersSet);
+  const displayHeaders = Array.from(allHeadersSet).filter(h => h !== 'Scan Mode' && h !== 'scan_mode');
 
   return (
     <div className={`app-shell ${scanFlash ? `flash-${scanFlash}` : ''}`}>
@@ -334,6 +468,35 @@ export default function App() {
               </div>
             </section>
 
+            {activeTab === 'data' && (
+              <section className="sidebar-section inventory-mode-section">
+                <span className="section-label">Inventory Mode</span>
+                <div className="inventory-mode-card">
+                  <div className="mode-toggle-row">
+                    <button
+                      className={`mode-chip ${inventoryAddMode === 'inventory_only' ? 'active' : ''}`}
+                      onClick={() => setInventoryAddMode('inventory_only')}
+                      type="button"
+                    >
+                      <span className="mode-chip-title">Inventory only</span>
+                      <span className="mode-chip-sub">Scan updates stock</span>
+                    </button>
+                    <button
+                      className={`mode-chip ${inventoryAddMode === 'normal' ? 'active' : ''}`}
+                      onClick={() => setInventoryAddMode('normal')}
+                      type="button"
+                    >
+                      <span className="mode-chip-title">Normal</span>
+                      <span className="mode-chip-sub">Scan adds to billing</span>
+                    </button>
+                  </div>
+                  <div className="field-hint">
+                    Selected mode controls how the next scan behaves.
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* Sheet Selector */}
             {availableSheets.length > 0 && (
               <section className="sidebar-section">
@@ -375,20 +538,24 @@ export default function App() {
               <span className="section-label">Session Stats</span>
               <div className="stats-grid">
                 <div className="stat-card">
-                  <div className="stat-value">{totalScansToday}</div>
+                  <div className="stat-value">{formatNumber(totalScansToday, { maximumFractionDigits: 0 })}</div>
                   <div className="stat-label">Scans</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-value">{uniqueItems}</div>
+                  <div className="stat-value">{formatNumber(uniqueItems, { maximumFractionDigits: 0 })}</div>
                   <div className="stat-label">Items</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-value">{scans.filter(s => s.isDuplicate).length}</div>
+                  <div className="stat-value">{formatNumber(scans.filter(s => s.isDuplicate).length, { maximumFractionDigits: 0 })}</div>
                   <div className="stat-label">Updates</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-value">{rows.reduce((a, r) => a + (Number(r[quantityColName]) || 0), 0)}</div>
+                  <div className="stat-value">{formatNumber(rows.reduce((a, r) => a + (Number(r[quantityColName]) || 0), 0), { maximumFractionDigits: 0 })}</div>
                   <div className="stat-label">Total Qty</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-value">{formatNumber(productsCount, { maximumFractionDigits: 0 })}</div>
+                  <div className="stat-label">Products</div>
                 </div>
               </div>
             </section>
@@ -453,7 +620,13 @@ export default function App() {
     columnConfig={{ barcodeColumn: barcodeColName, quantityColumn: quantityColName, timestampColumn: timestampColName, columnsOrder: orderedNames }}
   />
 ) : activeTab === 'barcode' ? (
-  <BarcodeGenerator />
+          <BarcodeGenerator filePath={filePath} sheetName={sheetName} columnConfig={{
+            barcodeColumn: barcodeColName,
+            quantityColumn: quantityColName,
+            timestampColumn: timestampColName,
+            columnsOrder: columnsList.map(c => c.name).filter(n => n.trim()),
+            extraColumns: columnsList.filter(c => !c.isDefault)
+          }} />
 ) : activeTab === 'data' ? (
   <div className="table-wrap">
     {searchQuery && filteredRows.length === 0 ? (
@@ -500,7 +673,7 @@ export default function App() {
                               {h === quantityColName ? (
                                 <span className="qty-badge">{String(row[h] ?? '')}</span>
                               ) : h === 'Price' ? (
-                                `Rs. ${parseFloat(row[h] || 0).toFixed(2)}`
+                                `Rs. ${formatCurrency(row[h] || 0)}`
                               ) : (
                                 String(row[h] ?? '')
                               )}
@@ -617,6 +790,22 @@ export default function App() {
                   <InfoCard icon="↩" title="Undo / Redo" body="Up to 10 steps of scan history. Reverse any mistake without reopening Excel." />
                 </div>
               </div>
+
+              <div className="settings-block">
+                <h3 className="settings-h">Update Center</h3>
+                <div className="update-current-version">Current Version: {appVersion || 'Unknown'}</div>
+
+                <div className="update-actions">
+                  <button className="btn-ghost" onClick={checkForUpdates} disabled={updateBusy}>
+                    <IconRefresh /> Check for Update
+                  </button>
+                  <button className="btn-accent" onClick={downloadAndInstallUpdate} disabled={updateBusy || !updateInfo?.assetUrl}>
+                    <IconDownload /> Download & Install
+                  </button>
+                </div>
+
+                <div className="update-status">{updateStatus}</div>
+              </div>
             </div>
           )}
         </main>
@@ -649,6 +838,7 @@ function InfoCard({ icon, title, body }) {
 const IconUndo = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/></svg>;
 const IconRedo = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 019-9 9 9 0 016 2.3L21 13"/></svg>;
 const IconDownload = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+const IconRefresh = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 106 6.51L1 11m23 9l-5-5"/></svg>;
 const IconFile = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
 const IconEnter = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 01-4 4H4"/></svg>;
 const IconTable = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>;

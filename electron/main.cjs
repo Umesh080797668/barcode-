@@ -1,9 +1,13 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const excelHandler = require('./excel-handler.cjs');
 const BarcodeDB    = require('./barcode-db.cjs');
 const printHandler = require('./print-handler.cjs');
 const fs = require('fs');
+const os = require('os');
+const { spawn } = require('child_process');
+const { pipeline } = require('stream/promises');
+const { Readable } = require('stream');
 
 // Periodic flusher for pending Excel operations
 const FLUSH_INTERVAL_MS = 5000;
@@ -12,6 +16,8 @@ let mainWindow;
 let barcodeDB;
 
 function createWindow() {
+  const appIconPath = path.join(app.getAppPath(), 'build', 'icon.png');
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -19,6 +25,7 @@ function createWindow() {
     minHeight: 600,
     title: 'ScanVault',
     backgroundColor: '#0d0e11',
+    icon: appIconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -37,6 +44,10 @@ function createWindow() {
 app.whenReady().then(() => {
   barcodeDB = new BarcodeDB(app);
   createWindow();
+});
+
+ipcMain.handle('app:getVersion', async () => {
+  return { success: true, version: app.getVersion() };
 });
 
 // Start periodic flusher after app ready
@@ -147,6 +158,11 @@ ipcMain.handle('barcode:saveProduct', async (_, product) => {
   catch (e) { return { success: false, error: e.message }; }
 });
 
+ipcMain.handle('barcode:syncProduct', async (_, product) => {
+  try { return await barcodeDB.syncProductRecord(product); }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
 ipcMain.handle('barcode:deleteProduct', async (_, id) => {
   try { return await barcodeDB.deleteProduct(id); }
   catch (e) { return { success: false, error: e.message }; }
@@ -183,6 +199,14 @@ ipcMain.handle('invoice:save', async (_, invoice) => {
 ipcMain.handle('invoice:applyStockChanges', async (_, { filePath, changes, columnConfig, sheetName }) => {
   try {
     return excelHandler.applyStockChanges(filePath, changes, columnConfig, sheetName);
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('excel:syncProduct', async (_, { filePath, product, columnConfig, sheetName }) => {
+  try {
+    return excelHandler.syncProductRecord(filePath, product, columnConfig, sheetName);
   } catch (e) {
     return { success: false, error: e.message };
   }
@@ -229,4 +253,43 @@ ipcMain.handle('settings:saveShop', async (_, config) => {
   const p = path.join(app.getPath('userData'), 'shop-config.json');
   fs.writeFileSync(p, JSON.stringify(config, null, 2), 'utf8');
   return { success: true };
+});
+
+ipcMain.handle('update:downloadAndInstall', async (_, { url, filename }) => {
+  try {
+    if (!url) {
+      return { success: false, error: 'Missing update URL' };
+    }
+
+    const updateDir = path.join(app.getPath('downloads'), 'ScanVault Updates');
+    fs.mkdirSync(updateDir, { recursive: true });
+
+    let resolvedName = filename;
+    if (!resolvedName) {
+      try {
+        resolvedName = path.basename(new URL(url).pathname) || 'ScanVault-Update.bin';
+      } catch (_) {
+        resolvedName = 'ScanVault-Update.bin';
+      }
+    }
+
+    const targetPath = path.join(updateDir, resolvedName);
+    const response = await fetch(url, { redirect: 'follow' });
+    if (!response.ok || !response.body) {
+      throw new Error(`Download failed (${response.status})`);
+    }
+
+    await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(targetPath));
+
+    if (process.platform === 'win32' && targetPath.toLowerCase().endsWith('.exe')) {
+      shell.showItemInFolder(targetPath);
+      spawn(targetPath, [], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      setImmediate(() => app.quit());
+      return { success: true, downloadedPath: targetPath, launched: true };
+    }
+
+    return { success: true, downloadedPath: targetPath, launched: false };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
