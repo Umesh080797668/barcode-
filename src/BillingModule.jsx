@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatCurrency, formatNumber } from './utils/format';
 
+let invoiceSequence = 0;
+const generateInvoiceNumber = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const suffix = String(invoiceSequence++ % 100000).padStart(5, '0');
+  return `INV-${year}-${month}${day}-${suffix}`;
+};
+
 export default function BillingModule({ filePath, sheetName, columnConfig }) {
   const [view, setView] = useState('new'); // 'new' | 'history' | 'settings'
   const [products, setProducts] = useState([]);
@@ -33,18 +43,21 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
   // Load products, shop config, printers on mount
   useEffect(() => {
     if (!isElectron) return;
-    refreshProducts();
-    window.electronAPI.getShopConfig().then(cfg => {
-      setShopConfig(cfg || {});
-      if (cfg?.cashier) setCashier(cfg.cashier);
-    });
-    window.electronAPI.listPrinters().then(r => {
-      if (r.success) {
-        setPrinters(r.printers);
-        // Auto-select first printer if only one
-        if (r.printers.length === 1) setSelectedPrinter(r.printers[0].name);
-      }
-    });
+    const timer = setTimeout(() => {
+      void refreshProducts();
+      window.electronAPI.getShopConfig().then(cfg => {
+        setShopConfig(cfg || {});
+        if (cfg?.cashier) setCashier(cfg.cashier);
+      });
+      window.electronAPI.listPrinters().then(r => {
+        if (r.success) {
+          setPrinters(r.printers);
+          // Auto-select first printer if only one
+          if (r.printers.length === 1) setSelectedPrinter(r.printers[0].name);
+        }
+      });
+    }, 0);
+    return () => clearTimeout(timer);
   }, [isElectron, refreshProducts]);
 
   // Warranty options
@@ -68,31 +81,37 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
   // When switching to supplier return, clear discounts and warranties from cart items
   useEffect(() => {
     if (transactionMode === 'supplier_return') {
-      setCartItems(prev => prev.map(i => ({
-        ...i,
-        discount: 0,
-        warranty: '',
-        remaining_warranty: '',
-        net_price: i.price,
-        total: (i.price || 0) * (i.quantity || 0)
-      })));
+      const timer = setTimeout(() => {
+        setCartItems(prev => prev.map(i => ({
+          ...i,
+          discount: 0,
+          warranty: '',
+          remaining_warranty: '',
+          net_price: i.price,
+          total: (i.price || 0) * (i.quantity || 0)
+        })));
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     if (transactionMode === 'customer_return') {
       // For customer returns: preserve price, remove discounts and allow entering remaining warranty
-      setCartItems(prev => prev.map(i => ({
-        ...i,
-        discount: 0,
-        remaining_warranty: i.remaining_warranty || '',
-        warranty: i.warranty || '',
-        net_price: i.price,
-        total: (i.price || 0) * (i.quantity || 0)
-      })));
+      const timer = setTimeout(() => {
+        setCartItems(prev => prev.map(i => ({
+          ...i,
+          discount: 0,
+          remaining_warranty: i.remaining_warranty || '',
+          warranty: i.warranty || '',
+          net_price: i.price,
+          total: (i.price || 0) * (i.quantity || 0)
+        })));
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [transactionMode]);
 
   // ── Cart logic ──────────────────────────────────────────────────────────────
-  const addToCart = (product) => {
+  const addToCart = useCallback((product) => {
     const productBarcode = barcodeText(product?.barcode);
     setCartItems(prev => {
       const existing = prev.find(i => barcodeText(i.barcode) === productBarcode);
@@ -114,9 +133,9 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
         total: product.price,
       }];
     });
-  };
+  }, [transactionMode]);
 
-  const buildProductFromInventoryRow = (row, fallbackBarcode) => {
+  const buildProductFromInventoryRow = useCallback((row, fallbackBarcode) => {
     if (!row) return null;
     const barcodeColumn = columnConfig?.barcodeColumn || 'Barcode';
     const barcode = barcodeText(row[barcodeColumn] || fallbackBarcode);
@@ -138,7 +157,7 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
       warranty: row.warranty || row.Warranty || '',
       remaining_warranty: row.remaining_warranty || row.remainingWarranty || '',
     };
-  };
+  }, [columnConfig]);
 
   const resolveScannedProduct = useCallback(async (barcode) => {
     const bc = barcodeText(barcode);
@@ -173,7 +192,7 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
     }
 
     return null;
-  }, [columnConfig, filePath, isElectron, sheetName]);
+  }, [buildProductFromInventoryRow, columnConfig, filePath, isElectron, sheetName]);
 
   const updateCartItem = (barcode, field, value) => {
     const targetBarcode = barcodeText(barcode);
@@ -232,15 +251,6 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
 
   // Use shared currency formatter
   const fmt = (n) => formatCurrency(n);
-
-  const generateInvoiceNumber = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const rand = Math.floor(Math.random() * 99999).toString().padStart(5, '0');
-    return `INV-${year}-${month}${day}-${rand}`;
-  };
 
   // ── Save & Print ────────────────────────────────────────────────────────────
   const handleSaveAndPrint = async (printAfter = true) => {
@@ -344,7 +354,7 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
 
     const outstandingSection = balVal !== 0 ? `
       <div class="divider"></div>
-      <div class="bold center">Outstanding : ${fmtN(Math.abs(balVal))}</div>
+      <div class="bold center">Outstanding : ${fmt(Math.abs(balVal))}</div>
     ` : '';
 
     const saveButtons = options.forSave
@@ -398,10 +408,10 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
   .balance-card.change { background: #fff8e6; }
   .balance-label { font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; font-weight: 500; }
   .balance-value { font-size: 15px; font-weight: 700; line-height: 1.1; }
-  .barcode-area { margin-top: 6px; text-align: center; }
+  .barcode-area { margin-top: 4px; text-align: center; }
   .barcode-svg { width: 100%; height: 60px; display: block; min-height: 50px; }
   .barcode-text { font-size: 8px; letter-spacing: 1px; margin-top: 2px; }
-  .footer-text { font-size: 8.5px; text-align: center; margin-top: 4px; line-height: 1.5; }
+  .footer-text { font-size: 8.5px; text-align: center; margin-top: 2px; line-height: 1.35; }
   .screen-actions {
     display: flex; gap: 8px; justify-content: center;
     margin: 12px 0 4px 0;
@@ -607,7 +617,7 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
       window.removeEventListener('message', onGlobal);
       window.removeEventListener('products:changed', onProductsChanged);
     };
-  }, [filePath, columnConfig, sheetName, selectedPrinter, shopConfig, refreshProducts, isElectron, resolveScannedProduct]);
+  }, [addToCart, filePath, columnConfig, sheetName, selectedPrinter, shopConfig, refreshProducts, isElectron, resolveScannedProduct]);
 
   const reprintInvoice = async (invoiceNo) => {
     const r = await window.electronAPI.getInvoice(invoiceNo);

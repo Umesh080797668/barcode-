@@ -58,6 +58,13 @@ function sleepSync(ms) {
   Atomics.wait(shared, 0, 0, ms);
 }
 
+function resolveSheetName(workbook, requestedSheetName) {
+  const sheetNames = workbook?.SheetNames || [];
+  if (requestedSheetName && sheetNames.includes(requestedSheetName)) return requestedSheetName;
+  if (currentSheetNameCache && sheetNames.includes(currentSheetNameCache)) return currentSheetNameCache;
+  return sheetNames[0] || requestedSheetName || 'Sheet1';
+}
+
 function isBusyWriteError(err) {
   const message = String(err?.message || err || '').toLowerCase();
   return message.includes('resource busy') || message.includes('ebusy') || message.includes('eacces') || message.includes('eperm') || message.includes('locked');
@@ -98,7 +105,7 @@ function flushPendingForFile(filePath) {
         // reuse existing update flow: load workbook, apply barcode update logic, write
         if (!fs.existsSync(filePath)) { removePendingFile(pfile); continue; }
         const workbook = XLSX.readFile(filePath);
-        const sheetName = op.sheetName || 'Sheet1';
+        const sheetName = resolveSheetName(workbook, op.sheetName);
         if (!workbook.Sheets[sheetName]) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([]), sheetName);
         const sheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(sheet);
@@ -126,7 +133,7 @@ function flushPendingForFile(filePath) {
       } else if (op.type === 'applyStockChanges') {
         if (!fs.existsSync(filePath)) { removePendingFile(pfile); continue; }
         const workbook = XLSX.readFile(filePath);
-        const sheetName = op.sheetName || 'Sheet1';
+        const sheetName = resolveSheetName(workbook, op.sheetName);
         if (!workbook.Sheets[sheetName]) { removePendingFile(pfile); continue; }
         const sheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(sheet);
@@ -162,7 +169,7 @@ function flushPendingForFile(filePath) {
       } else if (op.type === 'syncProduct') {
         if (!fs.existsSync(filePath)) { removePendingFile(pfile); continue; }
         const workbook = XLSX.readFile(filePath);
-        const sheetName = op.sheetName || 'Sheet1';
+        const sheetName = resolveSheetName(workbook, op.sheetName);
         if (!workbook.Sheets[sheetName]) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([]), sheetName);
         const sheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(sheet);
@@ -232,12 +239,8 @@ function readExcel(filePath, targetSheetName) {
     // Attempt to flush any pending queued operations for this file
     try { flushPendingForFile(filePath); } catch (e) { /* ignore flush errors */ }
     const workbook = XLSX.readFile(filePath);
+    const sheetName = resolveSheetName(workbook, targetSheetName);
     const sheetNames = workbook.SheetNames;
-    const sheetName = targetSheetName && sheetNames.includes(targetSheetName)
-        ? targetSheetName
-        : (currentSheetNameCache && sheetNames.includes(currentSheetNameCache) 
-            ? currentSheetNameCache 
-            : sheetNames[0]);
     
     currentSheetNameCache = sheetName;
     const sheet = workbook.Sheets[sheetName];
@@ -272,11 +275,13 @@ function updateExcel(filePath, barcode, columnConfig, sheetName = 'Sheet1', prod
     if (fs.existsSync(filePath)) {
       try { flushPendingForFile(filePath); } catch (e) { /* ignore */ }
       workbook = XLSX.readFile(filePath);
-      if (!workbook.Sheets[sheetName]) {
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([]), sheetName);
+      const resolvedSheetName = resolveSheetName(workbook, sheetName);
+      if (!workbook.Sheets[resolvedSheetName]) {
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([]), resolvedSheetName);
       }
-      const sheet = workbook.Sheets[sheetName];
+      const sheet = workbook.Sheets[resolvedSheetName];
       rows = XLSX.utils.sheet_to_json(sheet);
+      currentSheetNameCache = resolvedSheetName;
     } else {
       return { success: false, error: "File not found. Please select an existing Excel file." };
     }
@@ -333,9 +338,9 @@ function updateExcel(filePath, barcode, columnConfig, sheetName = 'Sheet1', prod
     const newSheet = XLSX.utils.json_to_sheet(rows, columnConfig.columnsOrder ? { header: columnConfig.columnsOrder } : {});
 
     if (workbook.SheetNames.length === 0) {
-      XLSX.utils.book_append_sheet(workbook, newSheet, sheetName);
+      XLSX.utils.book_append_sheet(workbook, newSheet, resolveSheetName(workbook, sheetName));
     } else {
-      workbook.Sheets[sheetName] = newSheet;
+      workbook.Sheets[resolveSheetName(workbook, sheetName)] = newSheet;
     }
 
     writeWorkbookWithRetry(workbook, filePath);
@@ -459,14 +464,15 @@ function syncProductRecord(filePath, product, columnConfig = {}, sheetName = 'Sh
     if (!fs.existsSync(filePath)) return { success: false, error: 'File not found.' };
     try { flushPendingForFile(filePath); } catch (e) { /* ignore */ }
     const workbook = XLSX.readFile(filePath);
-    if (!workbook.Sheets[sheetName]) {
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([]), sheetName);
+    const resolvedSheetName = resolveSheetName(workbook, sheetName);
+    if (!workbook.Sheets[resolvedSheetName]) {
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([]), resolvedSheetName);
     }
 
     redoStack = [];
     recordUndo(filePath);
 
-    const sheet = workbook.Sheets[sheetName];
+    const sheet = workbook.Sheets[resolvedSheetName];
     const rows = XLSX.utils.sheet_to_json(sheet);
 
     const barcodeCol = columnConfig.barcodeColumn || 'Barcode';
@@ -502,7 +508,7 @@ function syncProductRecord(filePath, product, columnConfig = {}, sheetName = 'Sh
     else rows.push(nextRow);
 
     const newSheet = XLSX.utils.json_to_sheet(rows, columnConfig.columnsOrder ? { header: columnConfig.columnsOrder } : {});
-    workbook.Sheets[sheetName] = newSheet;
+    workbook.Sheets[resolvedSheetName] = newSheet;
     writeWorkbookWithRetry(workbook, filePath);
     latestRowsCache = rows;
     return { success: true, rows };
@@ -544,8 +550,9 @@ async function applyStockChanges(filePath, changes = [], columnConfig = {}, shee
   try {
     if (!fs.existsSync(filePath)) return { success: false, error: 'File not found.' };
     const workbook = XLSX.readFile(filePath);
-    if (!workbook.Sheets[sheetName]) return { success: false, error: 'Sheet not found.' };
-    const sheet = workbook.Sheets[sheetName];
+    const resolvedSheetName = resolveSheetName(workbook, sheetName);
+    if (!workbook.Sheets[resolvedSheetName]) return { success: false, error: 'Sheet not found.' };
+    const sheet = workbook.Sheets[resolvedSheetName];
     const rows = XLSX.utils.sheet_to_json(sheet);
 
     const barcodeCol = columnConfig.barcodeColumn || 'Barcode';
@@ -570,7 +577,7 @@ async function applyStockChanges(filePath, changes = [], columnConfig = {}, shee
     }
 
     const newSheet = XLSX.utils.json_to_sheet(rows, columnConfig.columnsOrder ? { header: columnConfig.columnsOrder } : {});
-    workbook.Sheets[sheetName] = newSheet;
+    workbook.Sheets[resolvedSheetName] = newSheet;
     writeWorkbookWithRetry(workbook, filePath);
     latestRowsCache = rows;
     return { success: true, updated, rows, sheetNames: workbook.SheetNames };

@@ -1,8 +1,8 @@
 {
-  "name": "Barcode-Manager",
+  "name": "Stock Manager",
   "author": "imantha",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "main": "electron/main.cjs",
   "description": "POS service for the Oshini Mobile store",

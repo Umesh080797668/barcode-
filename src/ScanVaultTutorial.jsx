@@ -425,7 +425,12 @@ export default function ScanVaultTutorial() {
   const [step, setStep]   = useState(0);
   const [fading, setFading] = useState(false);
 
-  useEffect(() => { setSeen(localStorage.getItem(STORAGE_KEY) === "true"); }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSeen(localStorage.getItem(STORAGE_KEY) === "true");
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const dismiss = () => { localStorage.setItem(STORAGE_KEY, "true"); setSeen(true); };
 

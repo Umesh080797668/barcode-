@@ -134,13 +134,13 @@ function buildReceiptHTML(invoice, shopConfig) {
   .balance-card.change { background: #fff8e6; }
   .balance-label { font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; }
   .balance-value { font-size: 15px; font-weight: 700; line-height: 1.1; }
-  .barcode-area { margin-top: 6px; text-align: center; }
+  .barcode-area { margin-top: 4px; text-align: center; }
   .barcode-svg { width: 100%; height: 60px; display: block; min-height: 50px; }
   .barcode-text { font-size: 8px; letter-spacing: 1px; margin-top: 2px; }
-  .footer-text { font-size: 8.5px; text-align: center; margin-top: 4px; line-height: 1.5; }
-  .terms { font-size: 8.5px; margin-top: 4px; line-height: 1.6; }
+  .footer-text { font-size: 8.5px; text-align: center; margin-top: 2px; line-height: 1.35; }
+  .terms { font-size: 8.5px; margin-top: 2px; line-height: 1.35; }
   @media print {
-    @page { margin: 0; size: 80mm auto; }
+    @page { margin: 0; size: 72mm auto; }
     body { width: 72mm; }
   }
 </style>

@@ -108,7 +108,7 @@ function renderBarcode(svgEl, value, opts = {}) {
       margin:      8,
       ...opts,
     });
-  } catch (_) { /* invalid chars */ }
+  } catch { /* invalid chars */ }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -158,7 +158,10 @@ export default function BarcodeGenerator({ filePath, sheetName, columnConfig }) 
     if (st.success) setStats(st);
   }, [search]);
 
-  useEffect(() => { loadAll(''); }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => { void loadAll(''); }, 0);
+    return () => clearTimeout(timer);
+  }, [loadAll]);
 
   // ── search debounce ─────────────────────────────────────────────────────
   const handleSearch = (v) => {
@@ -272,7 +275,7 @@ export default function BarcodeGenerator({ filePath, sheetName, columnConfig }) 
         .pprice { font-size: 9px; color: #333; }
       </style></head><body>
       ${copies.join('')}
-      <script>window.onload=()=>{window.print();window.close();}<\/script>
+      <script>window.onload=()=>{window.print();window.close();}</script>
       </body></html>`);
     printWin.document.close();
   };

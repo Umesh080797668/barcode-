@@ -94,7 +94,7 @@ export default function App() {
     });
   }, [filePath, sheetName]);
 
-  useEffect(() => { loadData(); }, [filePath, sheetName]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   // Keep product count in sync when product DB changes (barcode creator)
   useEffect(() => {
@@ -103,52 +103,14 @@ export default function App() {
       try {
         const r = await window.electronAPI.getProducts();
         if (r && r.success) setProductsCount((r.products || []).length);
-      } catch (e) { /* ignore */ }
+        if (filePath) loadData();
+      } catch { /* ignore */ }
     };
     window.addEventListener('products:changed', onProductsChanged);
     // initial
     onProductsChanged();
     return () => window.removeEventListener('products:changed', onProductsChanged);
-  }, []);
-
-  const handleScannedBarcode = async (barcode, source = 'scan') => {
-    if (!window.electronAPI) {
-      await processBarcode(barcode, source);
-      return;
-    }
-
-    if (activeTab === 'billing' || inventoryAddMode === 'normal') {
-      if (activeTab !== 'billing') {
-        setActiveTab('billing');
-      }
-      window.postMessage({ action: 'billing:scan', barcode }, '*');
-      return;
-    }
-
-    await processBarcode(barcode, source);
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-      if (e.key === 'Enter') {
-        const barcode = barcodeBuffer.current;
-        barcodeBuffer.current = '';
-        clearTimeout(bufferTimer.current);
-        if (barcode.trim().length > 2) {
-          void handleScannedBarcode(barcode, 'scan');
-        }
-      } else if (e.key.length === 1) {
-        barcodeBuffer.current += e.key;
-        clearTimeout(bufferTimer.current);
-        bufferTimer.current = setTimeout(() => { barcodeBuffer.current = ''; }, 100);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  });
-
-  useEffect(() => () => clearTimeout(popupTimer.current), []);
+  }, [filePath, loadData]);
 
   async function processBarcode(barcode, source = 'scan') {
     if (!window.electronAPI) {
@@ -182,9 +144,9 @@ export default function App() {
 
     const result = await window.electronAPI.updateExcel({
       filePath, barcode,
-      columnConfig: { 
-        barcodeColumn: barcodeColName, 
-        quantityColumn: quantityColName, 
+      columnConfig: {
+        barcodeColumn: barcodeColName,
+        quantityColumn: quantityColName,
         timestampColumn: timestampColName,
         columnsOrder: columnsList.map(c => c.name).filter(n => n.trim()),
         extraColumns: columnsList.filter(c => !c.isDefault)
@@ -227,6 +189,45 @@ export default function App() {
       setTempStatus('error', result.error || 'Update failed');
     }
   }
+
+  const handleScannedBarcode = async (barcode, source = 'scan') => {
+    if (!window.electronAPI) {
+      await processBarcode(barcode, source);
+      return;
+    }
+
+    if (activeTab === 'billing' || inventoryAddMode === 'normal') {
+      if (activeTab !== 'billing') {
+        setActiveTab('billing');
+      }
+      window.postMessage({ action: 'billing:scan', barcode }, '*');
+      return;
+    }
+
+    await processBarcode(barcode, source);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      if (e.key === 'Enter') {
+        const barcode = barcodeBuffer.current;
+        barcodeBuffer.current = '';
+        clearTimeout(bufferTimer.current);
+        if (barcode.trim().length > 2) {
+          void handleScannedBarcode(barcode, 'scan');
+        }
+      } else if (e.key.length === 1) {
+        barcodeBuffer.current += e.key;
+        clearTimeout(bufferTimer.current);
+        bufferTimer.current = setTimeout(() => { barcodeBuffer.current = ''; }, 100);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
+
+  useEffect(() => () => clearTimeout(popupTimer.current), []);
 
   const handleSelectFile = async () => {
     if (!window.electronAPI) return;
@@ -810,16 +811,6 @@ export default function App() {
           )}
         </main>
       </div>
-    </div>
-  );
-}
-
-function FieldGroup({ label, hint, value, onChange }) {
-  return (
-    <div className="field-group">
-      <label className="field-label">{label}</label>
-      <input className="field-input" value={value} onChange={e => onChange(e.target.value)} />
-      {hint && <span className="field-hint">{hint}</span>}
     </div>
   );
 }
