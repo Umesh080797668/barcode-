@@ -1071,14 +1071,6 @@ button { cursor: pointer; font-family: var(--font-sans); outline: none; }
   text-align: right;
 }
 
-.update-card-body {
-  margin-top: 12px;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--muted);
-  white-space: pre-wrap;
-}
-
 @media (max-width: 900px) {
   .update-grid {
     grid-template-columns: 1fr;

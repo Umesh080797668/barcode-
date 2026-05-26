@@ -296,7 +296,9 @@ export default function App() {
       };
 
       setUpdateInfo(info);
-      setUpdateStatus(isUpToDate ? 'You are on the latest version' : `Update available: ${info.latestVersion || info.tag}`);
+      setUpdateStatus(isUpToDate
+        ? 'You are already on the latest version'
+        : `Update available: ${info.latestVersion || info.tag}`);
     } catch (error) {
       setUpdateStatus(error.message || 'Unable to check updates');
     } finally {
@@ -305,6 +307,11 @@ export default function App() {
   };
 
   const downloadAndInstallUpdate = async () => {
+    if (updateInfo && updateInfo.updateAvailable === false) {
+      setUpdateStatus(`You are already on the latest version${updateInfo.latestVersion ? ` (${updateInfo.latestVersion})` : ''}`);
+      return;
+    }
+
     if (!window.electronAPI || !updateInfo?.assetUrl) {
       setUpdateStatus('No downloadable update found');
       return;
@@ -800,10 +807,35 @@ export default function App() {
                   <button className="btn-ghost" onClick={checkForUpdates} disabled={updateBusy}>
                     <IconRefresh /> Check for Update
                   </button>
-                  <button className="btn-accent" onClick={downloadAndInstallUpdate} disabled={updateBusy || !updateInfo?.assetUrl}>
+                  <button
+                    className="btn-accent"
+                    onClick={downloadAndInstallUpdate}
+                    disabled={updateBusy || !updateInfo?.assetUrl || updateInfo?.updateAvailable === false}
+                  >
                     <IconDownload /> Download & Install
                   </button>
                 </div>
+
+                {updateInfo && (
+                  <div className="update-card">
+                    <div className="update-card-title">{updateInfo.name || 'Latest release'}</div>
+                    <div className="update-card-subtitle">
+                      {updateInfo.publishedAt ? `Published ${new Date(updateInfo.publishedAt).toLocaleString()}` : 'Release details'}
+                    </div>
+                    <div className="update-card-line">
+                      <span>Current</span>
+                      <span>{updateInfo.currentVersion || appVersion || 'Unknown'}</span>
+                    </div>
+                    <div className="update-card-line">
+                      <span>Latest</span>
+                      <span>{updateInfo.latestVersion || updateInfo.tag || 'Unknown'}</span>
+                    </div>
+                    <div className="update-card-line">
+                      <span>Status</span>
+                      <span>{updateInfo.updateAvailable === false ? 'Up to date' : 'Update ready'}</span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="update-status">{updateStatus}</div>
               </div>

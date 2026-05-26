@@ -9,6 +9,18 @@ function getDbPath(app) {
   return path.join(base, 'scanvault-products.sqlite');
 }
 
+function getLegacyDbPaths(app) {
+  const paths = [
+    path.join(__dirname, '..', 'scanvault-products.sqlite'),
+  ];
+
+  if (app?.getAppPath) {
+    paths.unshift(path.join(app.getAppPath(), 'scanvault-products.sqlite'));
+  }
+
+  return [...new Set(paths)];
+}
+
 class BarcodeDB {
   constructor(app) {
     this.app = app;
@@ -21,6 +33,15 @@ class BarcodeDB {
   async _init() {
     try {
       const SQL = await initSqlJs();
+      const legacyPaths = getLegacyDbPaths(this.app).filter((candidate) => candidate !== this.dbPath);
+      if (!fs.existsSync(this.dbPath)) {
+        const legacyPath = legacyPaths.find((candidate) => fs.existsSync(candidate));
+        if (legacyPath) {
+          fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
+          fs.copyFileSync(legacyPath, this.dbPath);
+        }
+      }
+
       if (fs.existsSync(this.dbPath)) {
         const fileBuffer = fs.readFileSync(this.dbPath);
         this.db = new SQL.Database(fileBuffer);

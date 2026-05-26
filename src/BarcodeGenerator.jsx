@@ -125,6 +125,7 @@ export default function BarcodeGenerator({ filePath, sheetName, columnConfig }) 
   const [editProduct, setEdit]    = useState(null); // product being edited/previewed
   const [printQty, setPrintQty]   = useState(1);
   const [labelSize, setLabelSize] = useState('medium'); // small | medium | large
+  const [barcodeMode, setBarcodeMode] = useState('auto'); // auto | manual
 
   // new field editor
   const [newField, setNewField] = useState({ label:'', field_type:'text', default_val:'' });
@@ -194,6 +195,7 @@ export default function BarcodeGenerator({ filePath, sheetName, columnConfig }) 
       extra_fields:  {},
     };
     setEdit(blank);
+    setBarcodeMode('auto');
     setView('create');
     setPrintQty(1);
   };
@@ -201,6 +203,7 @@ export default function BarcodeGenerator({ filePath, sheetName, columnConfig }) 
   // ── open existing for preview/edit ───────────────────────────────────────
   const handleOpen = async (p) => {
     setEdit({ ...p });
+    setBarcodeMode('manual');
     setView('preview');
     setPrintQty(1);
   };
@@ -212,6 +215,7 @@ export default function BarcodeGenerator({ filePath, sheetName, columnConfig }) 
     if (!String(editProduct?.name || '').trim()) { showToast('Product name required', 'err'); return; }
     if (!editProduct?.quantity && editProduct?.quantity !== 0) { showToast('Quantity required', 'err'); return; }
     if (!editProduct?.price && editProduct?.price !== 0) { showToast('Price required', 'err'); return; }
+    if (barcodeMode === 'manual' && !String(editProduct?.barcode || '').trim()) { showToast('Barcode required', 'err'); return; }
     setSaving(true);
     const res = await apiCall('saveProduct', editProduct);
     setSaving(false);
@@ -414,17 +418,41 @@ export default function BarcodeGenerator({ filePath, sheetName, columnConfig }) 
             <h3 className="bc-section-h">{view === 'create' ? 'New Product' : 'Edit Product'}</h3>
 
             <div className="bc-field-group">
+              <label className="bc-label">Barcode Type</label>
+              <select
+                className="bc-input"
+                value={barcodeMode}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setBarcodeMode(mode);
+                  if (mode === 'auto' && !editProduct?.barcode) {
+                    void apiCall('generateBarcode').then((r) => {
+                      if (r?.barcode) setFieldVal('barcode', r.barcode);
+                    });
+                  }
+                }}
+              >
+                <option value="auto">Auto-generated</option>
+                <option value="manual">Manual entry</option>
+              </select>
+            </div>
+
+            <div className="bc-field-group">
               <label className="bc-label">Barcode Number</label>
               <div style={{ display:'flex', gap:8 }}>
                 <input
                   className="bc-input bc-input-mono"
                   value={editProduct.barcode}
-                  readOnly
+                  readOnly={barcodeMode !== 'manual'}
+                  onChange={barcodeMode === 'manual' ? (e) => setFieldVal('barcode', e.target.value) : undefined}
+                  placeholder={barcodeMode === 'manual' ? 'Enter barcode manually' : ''}
                 />
-                <button className="bc-btn-ghost" title="Regenerate" onClick={async()=>{
-                  const r = await apiCall('generateBarcode');
-                  setFieldVal('barcode', r.barcode);
-                }}>↻</button>
+                {barcodeMode === 'auto' && (
+                  <button className="bc-btn-ghost" title="Regenerate" onClick={async()=>{
+                    const r = await apiCall('generateBarcode');
+                    setFieldVal('barcode', r.barcode);
+                  }}>↻</button>
+                )}
               </div>
             </div>
 
