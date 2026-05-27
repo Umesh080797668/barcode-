@@ -137,6 +137,10 @@ export default function App() {
       return;
     }
 
+    if (activeTab === 'barcode') {
+      return;
+    }
+
     if (!filePath) {
       setTempStatus('error', 'Select an Excel file first');
       return;
@@ -196,7 +200,7 @@ export default function App() {
       return;
     }
 
-    if (activeTab === 'billing' || inventoryAddMode === 'normal') {
+    if (activeTab === 'billing' || (activeTab === 'data' && inventoryAddMode === 'normal')) {
       if (activeTab !== 'billing') {
         setActiveTab('billing');
       }

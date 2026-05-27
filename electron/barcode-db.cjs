@@ -436,69 +436,115 @@ generateInvoiceNumber() {
 
 async saveInvoice(invoice) {
   await this._ensureInvoiceTables();
-  const invNo = invoice.invoice_no || this.generateInvoiceNumber();
+  const baseInvoice = {
+    customer_name: invoice.customer_name || '',
+    customer_phone: invoice.customer_phone || '',
+    cashier: invoice.cashier || '',
+    subtotal: invoice.subtotal || 0,
+    discount: invoice.discount || 0,
+    total: invoice.total || 0,
+    paid_cash: invoice.paid_cash || 0,
+    balance: invoice.balance || 0,
+    status: invoice.status || 'unpaid',
+    transaction_type: invoice.transaction_type || 'sale',
+    return_reason: invoice.return_reason || '',
+  };
 
-  const stmt = this.db.prepare(`
-    INSERT INTO invoices 
-      (invoice_no, customer_name, customer_phone, cashier, subtotal, discount, total, paid_cash, balance, status, transaction_type, return_reason)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  stmt.run([
-    invNo,
-    invoice.customer_name || '',
-    invoice.customer_phone || '',
-    invoice.cashier || '',
-    invoice.subtotal || 0,
-    invoice.discount || 0,
-    invoice.total || 0,
-    invoice.paid_cash || 0,
-    invoice.balance || 0,
-    invoice.status || 'unpaid',
-    invoice.transaction_type || 'sale',
-    invoice.return_reason || ''
-  ]);
-  stmt.free();
-
-  // Get the new invoice id
-  const idRes = this.db.exec("SELECT last_insert_rowid() as id");
-  const invoiceId = idRes[0].values[0][0];
-
-  // Insert items
-  for (const item of (invoice.items || [])) {
-    const iStmt = this.db.prepare(`
-      INSERT INTO invoice_items (invoice_id, barcode, name, price, quantity, discount, net_price, total, warranty, remaining_warranty)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    iStmt.run([
-      invoiceId,
-      item.barcode || '',
-      item.name || '',
-      item.price || 0,
-      item.quantity || 1,
-      item.discount || 0,
-      item.net_price || item.price || 0,
-      item.total || 0,
-      item.warranty || '',
-      item.remaining_warranty || ''
-    ]);
-    iStmt.free();
-
-    // Reduce stock quantity
-    if (item.barcode) {
-      if (invoice.transaction_type === 'customer_return') {
-        const uStmt = this.db.prepare(`UPDATE products SET quantity = quantity + ? WHERE barcode = ?`);
-        uStmt.run([item.quantity || 1, item.barcode]);
-        uStmt.free();
-      } else {
-        const uStmt = this.db.prepare(`UPDATE products SET quantity = MAX(0, quantity - ?) WHERE barcode = ?`);
-        uStmt.run([item.quantity || 1, item.barcode]);
-        uStmt.free();
-      }
+  const existingInvoiceNos = new Set();
+  const invoiceRows = this.db.exec('SELECT invoice_no FROM invoices');
+  if (invoiceRows.length > 0) {
+    for (const row of invoiceRows[0].values || []) {
+      if (row[0]) existingInvoiceNos.add(String(row[0]));
     }
   }
 
-  this._saveDisk();
-  return { success: true, invoice_no: invNo, id: invoiceId };
+  let invNo = String(invoice.invoice_no || '').trim();
+  if (!invNo || existingInvoiceNos.has(invNo)) {
+    invNo = '';
+  }
+
+  let lastError = null;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const candidateNo = invNo || this.generateInvoiceNumber();
+    if (existingInvoiceNos.has(candidateNo)) {
+      invNo = '';
+      continue;
+    }
+
+    try {
+      this.db.run('BEGIN TRANSACTION');
+
+      const stmt = this.db.prepare(`
+        INSERT INTO invoices 
+          (invoice_no, customer_name, customer_phone, cashier, subtotal, discount, total, paid_cash, balance, status, transaction_type, return_reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run([
+        candidateNo,
+        baseInvoice.customer_name,
+        baseInvoice.customer_phone,
+        baseInvoice.cashier,
+        baseInvoice.subtotal,
+        baseInvoice.discount,
+        baseInvoice.total,
+        baseInvoice.paid_cash,
+        baseInvoice.balance,
+        baseInvoice.status,
+        baseInvoice.transaction_type,
+        baseInvoice.return_reason,
+      ]);
+      stmt.free();
+
+      const idRes = this.db.exec('SELECT last_insert_rowid() as id');
+      const invoiceId = idRes[0].values[0][0];
+
+      for (const item of (invoice.items || [])) {
+        const iStmt = this.db.prepare(`
+          INSERT INTO invoice_items (invoice_id, barcode, name, price, quantity, discount, net_price, total, warranty, remaining_warranty)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        iStmt.run([
+          invoiceId,
+          item.barcode || '',
+          item.name || '',
+          item.price || 0,
+          item.quantity || 1,
+          item.discount || 0,
+          item.net_price || item.price || 0,
+          item.total || 0,
+          item.warranty || '',
+          item.remaining_warranty || ''
+        ]);
+        iStmt.free();
+
+        if (item.barcode) {
+          if (invoice.transaction_type === 'customer_return') {
+            const uStmt = this.db.prepare(`UPDATE products SET quantity = quantity + ? WHERE barcode = ?`);
+            uStmt.run([item.quantity || 1, item.barcode]);
+            uStmt.free();
+          } else {
+            const uStmt = this.db.prepare(`UPDATE products SET quantity = MAX(0, quantity - ?) WHERE barcode = ?`);
+            uStmt.run([item.quantity || 1, item.barcode]);
+            uStmt.free();
+          }
+        }
+      }
+
+      this.db.run('COMMIT');
+      this._saveDisk();
+      return { success: true, invoice_no: candidateNo, id: invoiceId };
+    } catch (err) {
+      lastError = err;
+      try { this.db.run('ROLLBACK'); } catch (_) { /* ignore */ }
+      if (!/UNIQUE constraint failed: invoices\.invoice_no/i.test(String(err?.message || err))) {
+        throw err;
+      }
+      existingInvoiceNos.add(candidateNo);
+      invNo = '';
+    }
+  }
+
+  throw lastError || new Error('Unable to generate a unique invoice number');
 }
 
 async getInvoices(limit = 50) {
