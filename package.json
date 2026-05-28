@@ -2,7 +2,7 @@
   "name": "stock-manager",
   "author": "imantha",
   "private": true,
-  "version": "0.0.4",
+  "version": "0.0.5",
   "type": "module",
   "main": "electron/main.cjs",
   "description": "POS service for the Oshini Mobile store",
@@ -49,10 +49,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.4",
     "@eslint/js": "^10.0.1",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
     "electron": "^42.1.0",

@@ -22,6 +22,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportCSV: (filePath) => 
     ipcRenderer.invoke('excel:exportCSV', filePath),
 
+  createFullBackup: (payload) =>
+    ipcRenderer.invoke('backup:createFull', payload),
+
+  restoreFullBackup: (payload) =>
+    ipcRenderer.invoke('backup:restoreFull', payload),
+
+  onBackupProgress: (callback) => {
+    const listener = (_, payload) => callback(payload);
+    ipcRenderer.on('backup:progress', listener);
+    return () => ipcRenderer.removeListener('backup:progress', listener);
+  },
+
   selectFile: () =>
     ipcRenderer.invoke('dialog:selectFile'),
 

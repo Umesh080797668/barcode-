@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { formatCurrency, formatNumber } from './utils/format';
 import './App.css';
 import ScanVaultTutorial from './ScanVaultTutorial';
@@ -7,6 +7,7 @@ import BillingModule from './BillingModule';
 
 export default function App() {
   const UPDATE_REPO = 'Umesh080797668/barcode-';
+  const UPDATE_SKIP_KEY = 'scanvault_update_skip_version_v1';
   const [filePath, setFilePath] = useState('');
   const [sheetName, setSheetName] = useState('Sheet1');
   const [availableSheets, setAvailableSheets] = useState(['Sheet1']);
@@ -26,10 +27,16 @@ export default function App() {
   const [manualInput, setManualInput] = useState('');
   const [inventoryAddMode, setInventoryAddMode] = useState('inventory_only');
   const [lastScanPopup, setLastScanPopup] = useState(null);
-  const [appVersion, setAppVersion] = useState('0.0.0');
+  const [inventoryPage, setInventoryPage] = useState(1);
+  const [inventoryScrollTop, setInventoryScrollTop] = useState(0);
+  const [inventoryViewportHeight, setInventoryViewportHeight] = useState(0);
+  const [appVersion, setAppVersion] = useState('');
   const [updateStatus, setUpdateStatus] = useState('Idle');
   const [updateBusy, setUpdateBusy] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
+  const [backupProgress, setBackupProgress] = useState(null);
 
   const [barcodeColName] = useState('Barcode');
   const [quantityColName] = useState('Quantity');
@@ -49,6 +56,7 @@ export default function App() {
   const statusTimer = useRef(null);
   const popupTimer = useRef(null);
   const tableBodyRef = useRef(null);
+  const tableWrapRef = useRef(null);
 
   useEffect(() => {
     if (window.electronAPI?.getAppVersion) {
@@ -56,6 +64,19 @@ export default function App() {
         if (result?.success && result.version) setAppVersion(result.version);
       });
     }
+  }, []);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const showLastScanPopup = useCallback((entry) => {
@@ -77,24 +98,47 @@ export default function App() {
     }, 2500);
   };
 
-  const loadData = useCallback(() => {
-    if (!window.electronAPI || !filePath) return;
-    window.electronAPI.readExcel(filePath, sheetName).then((result) => {
+  const loadData = useCallback(async (overrideFilePath = filePath) => {
+    if (!window.electronAPI || !overrideFilePath) return;
+    const result = await window.electronAPI.readExcel(overrideFilePath, sheetName);
       if (result.success) {
         setHeaders(result.headers || []);
         setRows(result.rows || []);
         setAvailableSheets(result.sheetNames || ['Sheet1']);
         setUniqueItems(result.rows?.length || 0);
+        setInventoryPage(1);
+        setInventoryScrollTop(0);
         if (result.sheetNames && !result.sheetNames.includes(sheetName)) {
           setSheetName(result.sheetNames[0] || 'Sheet1');
         }
       } else {
         setTempStatus('error', result.error || 'Failed to read file');
       }
-    });
   }, [filePath, sheetName]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [loadData]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onBackupProgress) return undefined;
+
+    return window.electronAPI.onBackupProgress((payload) => {
+      if (!payload?.operation) return;
+      setBackupProgress({
+        operation: payload.operation,
+        status: payload.status || 'running',
+        phase: payload.phase || '',
+        progress: typeof payload.progress === 'number' ? payload.progress : null,
+        details: payload.details || '',
+        updatedAt: Date.now(),
+      });
+    });
+  }, []);
 
   // Keep product count in sync when product DB changes (barcode creator)
   useEffect(() => {
@@ -112,7 +156,7 @@ export default function App() {
     return () => window.removeEventListener('products:changed', onProductsChanged);
   }, [filePath, loadData]);
 
-  async function processBarcode(barcode, source = 'scan') {
+  const processBarcode = useCallback(async (barcode, source = 'scan') => {
     if (!window.electronAPI) {
       const existing = rows.find(r => String(r[barcodeColName]) === String(barcode));
       const now = new Date().toLocaleString();
@@ -128,6 +172,7 @@ export default function App() {
         if (headers.length === 0) setHeaders([barcodeColName, quantityColName, timestampColName]);
       }
       setRows(newRows);
+      setInventoryPage(Math.floor((newRows.findIndex(r => String(r[barcodeColName]) === String(barcode))) / inventoryPageSize) + 1 || 1);
       setUniqueItems(newRows.length);
       const entry = { barcode, time: new Date().toLocaleTimeString(), isDuplicate, source };
       setScans(prev => [entry, ...prev.slice(0, 99)]);
@@ -165,6 +210,10 @@ export default function App() {
         setHeaders(result.rows[0] ? Object.keys(result.rows[0]) : headers);
       }
       setRows(result.rows);
+      const targetIndex = (result.rows || []).findIndex(r => String(r[barcodeColName]) === String(barcode));
+      if (targetIndex >= 0) {
+        setInventoryPage(Math.floor(targetIndex / inventoryPageSize) + 1);
+      }
       setUniqueItems(result.rows.length);
       setAvailableSheets(result.sheetNames || availableSheets);
       const entry = { barcode, time: new Date().toLocaleTimeString(), isDuplicate: result.isDuplicate, source };
@@ -192,9 +241,9 @@ export default function App() {
     } else {
       setTempStatus('error', result.error || 'Update failed');
     }
-  }
+  }, [activeTab, availableSheets, barcodeColName, columnsList, filePath, headers, inventoryAddMode, quantityColName, rows, sheetName, showLastScanPopup, timestampColName]);
 
-  const handleScannedBarcode = async (barcode, source = 'scan') => {
+  const handleScannedBarcode = useCallback(async (barcode, source = 'scan') => {
     if (!window.electronAPI) {
       await processBarcode(barcode, source);
       return;
@@ -209,7 +258,7 @@ export default function App() {
     }
 
     await processBarcode(barcode, source);
-  };
+  }, [activeTab, inventoryAddMode, processBarcode]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -229,7 +278,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  });
+  }, [handleScannedBarcode]);
 
   useEffect(() => () => clearTimeout(popupTimer.current), []);
 
@@ -260,16 +309,114 @@ export default function App() {
     else setTempStatus('error', r.error || 'Export cancelled');
   };
 
-  const checkForUpdates = async () => {
+  const handleCreateBackup = async () => {
+    if (!window.electronAPI) return;
+    setBackupProgress({
+      operation: 'backup:createFull',
+      status: 'running',
+      phase: 'Starting backup',
+      progress: 0,
+      details: 'Preparing workbook merge',
+      updatedAt: Date.now(),
+    });
+    const result = await window.electronAPI.createFullBackup({ sourceFilePath: filePath });
+    if (result.success) {
+      setBackupProgress((current) => ({
+        ...current,
+        operation: 'backup:createFull',
+        status: 'success',
+        phase: 'Backup completed',
+        progress: 100,
+        details: `Saved to ${result.backupPath.split(/[\\/]/).pop()}`,
+        updatedAt: Date.now(),
+      }));
+      setTempStatus('success', `Backup merged: ${result.backupPath.split(/[\\/]/).pop()}`);
+    } else {
+      setBackupProgress((current) => ({
+        ...current,
+        operation: 'backup:createFull',
+        status: 'error',
+        phase: 'Backup failed',
+        progress: current?.progress ?? 100,
+        details: result.error || 'Backup failed',
+        updatedAt: Date.now(),
+      }));
+      setTempStatus('error', result.error || 'Backup failed');
+    }
+  };
+
+  const handleRestoreBackup = async () => {
+    if (!window.electronAPI) return;
+    setBackupProgress({
+      operation: 'backup:restoreFull',
+      status: 'running',
+      phase: 'Starting restore',
+      progress: 0,
+      details: 'Opening backup workbook',
+      updatedAt: Date.now(),
+    });
+    const result = await window.electronAPI.restoreFullBackup({ targetFilePath: filePath });
+    if (result.success) {
+      const restoreMessage = result.alreadySynced
+        ? 'Already synced. Nothing to restore.'
+        : `Restored ${result.restoredSheets} Excel sheet(s) and ${result.productsInserted + result.productsUpdated + result.customFieldsInserted + result.customFieldsUpdated + result.invoicesInserted + result.invoicesUpdated + result.invoiceItemsInserted + result.invoiceItemsUpdated} database row(s)`;
+      setBackupProgress((current) => ({
+        ...current,
+        operation: 'backup:restoreFull',
+        status: 'success',
+        phase: 'Restore completed',
+        progress: 100,
+        details: restoreMessage,
+        updatedAt: Date.now(),
+      }));
+      setTempStatus('success', restoreMessage);
+      if (result.targetFilePath) {
+        setFilePath(result.targetFilePath);
+        await loadData(result.targetFilePath);
+      } else {
+        await loadData();
+      }
+      window.dispatchEvent(new Event('products:changed'));
+      window.dispatchEvent(new Event('data:restored'));
+    } else {
+      setBackupProgress((current) => ({
+        ...current,
+        operation: 'backup:restoreFull',
+        status: 'error',
+        phase: 'Restore failed',
+        progress: current?.progress ?? 100,
+        details: result.error || 'Restore failed',
+        updatedAt: Date.now(),
+      }));
+      setTempStatus('error', result.error || 'Restore failed');
+    }
+  };
+
+  const dismissUpdatePrompt = useCallback(() => {
+    const skipVersion = updateInfo?.latestVersion || updateInfo?.tag || '';
+    if (skipVersion) {
+      localStorage.setItem(UPDATE_SKIP_KEY, skipVersion);
+    }
+    setShowUpdatePrompt(false);
+    setUpdateStatus('Update skipped for now');
+  }, [updateInfo]);
+
+  const checkForUpdates = useCallback(async () => {
     const repo = UPDATE_REPO.trim();
     if (!repo) {
       setUpdateStatus('Update source is not configured');
       return;
     }
 
+    if (!isOnline) {
+      setUpdateStatus('You are offline. Update check skipped.');
+      return;
+    }
+
     setUpdateBusy(true);
     setUpdateStatus('Checking GitHub releases...');
     setUpdateInfo(null);
+    setShowUpdatePrompt(false);
 
     try {
       const response = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
@@ -299,7 +446,12 @@ export default function App() {
         updateAvailable: !isUpToDate,
       };
 
+      const skippedVersion = localStorage.getItem(UPDATE_SKIP_KEY) || '';
+      const releaseKey = info.latestVersion || info.tag || '';
+      const shouldShowPrompt = info.updateAvailable !== false && Boolean(info.assetUrl) && skippedVersion !== releaseKey;
+
       setUpdateInfo(info);
+      setShowUpdatePrompt(shouldShowPrompt);
       setUpdateStatus(isUpToDate
         ? 'You are already on the latest version'
         : `Update available: ${info.latestVersion || info.tag}`);
@@ -308,7 +460,16 @@ export default function App() {
     } finally {
       setUpdateBusy(false);
     }
-  };
+  }, [appVersion, isOnline]);
+
+  useEffect(() => {
+    if (!isOnline || !appVersion) return;
+    const timer = window.setTimeout(() => {
+      void checkForUpdates();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [isOnline, appVersion, checkForUpdates]);
 
   const downloadAndInstallUpdate = async () => {
     if (updateInfo && updateInfo.updateAvailable === false) {
@@ -331,6 +492,7 @@ export default function App() {
       });
 
       if (result.success) {
+        setShowUpdatePrompt(false);
         setUpdateStatus(result.launched
           ? 'Installer launched. Follow the setup wizard.'
           : `Downloaded to ${result.downloadedPath}`);
@@ -347,9 +509,90 @@ export default function App() {
     if (val.trim().length > 0) { void handleScannedBarcode(val, 'manual'); setManualInput(''); }
   };
 
-  const filteredRows = rows.filter(row =>
-    headers.some(h => String(row[h] ?? '').toLowerCase().includes(searchQuery.toLowerCase()))
+  const searchTerm = searchQuery.trim().toLowerCase();
+  const inventoryPageSize = 50;
+  const inventoryRowHeight = 42;
+  const inventoryOverscan = 6;
+
+  const filteredRows = useMemo(() => {
+    if (!searchTerm) return rows;
+    return rows.filter((row) =>
+      headers.some((header) => String(row[header] ?? '').toLowerCase().includes(searchTerm))
+    );
+  }, [headers, rows, searchTerm]);
+
+  const duplicateCount = useMemo(
+    () => scans.reduce((count, scan) => count + (scan.isDuplicate ? 1 : 0), 0),
+    [scans]
   );
+
+  const totalQuantity = useMemo(
+    () => rows.reduce((sum, row) => sum + (Number(row[quantityColName]) || 0), 0),
+    [quantityColName, rows]
+  );
+
+  const orderedNames = useMemo(
+    () => columnsList.map((column) => column.name).filter((name) => name.trim()),
+    [columnsList]
+  );
+
+  const columnConfig = useMemo(() => ({
+    barcodeColumn: barcodeColName,
+    quantityColumn: quantityColName,
+    timestampColumn: timestampColName,
+    columnsOrder: orderedNames,
+    extraColumns: columnsList.filter((column) => !column.isDefault),
+  }), [barcodeColName, columnsList, orderedNames, quantityColName, timestampColName]);
+
+  const displayHeaders = useMemo(() => {
+    const allHeaders = new Set(orderedNames);
+    headers.forEach((header) => allHeaders.add(header));
+    return Array.from(allHeaders).filter((header) => header !== 'Scan Mode' && header !== 'scan_mode');
+  }, [headers, orderedNames]);
+
+  const totalInventoryPages = Math.max(1, Math.ceil(filteredRows.length / inventoryPageSize));
+  const currentInventoryPage = Math.min(inventoryPage, totalInventoryPages);
+  const inventoryPageStart = (currentInventoryPage - 1) * inventoryPageSize;
+  const inventoryPageRows = useMemo(
+    () => filteredRows.slice(inventoryPageStart, inventoryPageStart + inventoryPageSize),
+    [filteredRows, inventoryPageStart]
+  );
+
+  const inventoryVisibleStart = Math.max(0, Math.floor(inventoryScrollTop / inventoryRowHeight) - inventoryOverscan);
+  const inventoryVisibleCount = Math.max(
+    1,
+    Math.ceil((inventoryViewportHeight || inventoryRowHeight) / inventoryRowHeight) + inventoryOverscan * 2
+  );
+  const inventoryVisibleRows = useMemo(
+    () => inventoryPageRows.slice(inventoryVisibleStart, inventoryVisibleStart + inventoryVisibleCount),
+    [inventoryPageRows, inventoryVisibleCount, inventoryVisibleStart]
+  );
+  const inventoryVisibleEnd = inventoryVisibleStart + inventoryVisibleRows.length;
+  const inventoryTopSpacer = inventoryVisibleStart * inventoryRowHeight;
+  const inventoryBottomSpacer = Math.max(0, (inventoryPageRows.length - inventoryVisibleEnd) * inventoryRowHeight);
+
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      setInventoryViewportHeight(tableWrapRef.current?.clientHeight || 0);
+    };
+
+    updateViewportHeight();
+
+    if (typeof ResizeObserver !== 'undefined' && tableWrapRef.current) {
+      const observer = new ResizeObserver(updateViewportHeight);
+      observer.observe(tableWrapRef.current);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', updateViewportHeight);
+    return () => window.removeEventListener('resize', updateViewportHeight);
+  }, []);
+
+  useEffect(() => {
+    if (tableWrapRef.current) {
+      tableWrapRef.current.scrollTop = 0;
+    }
+  }, [currentInventoryPage]);
 
   useEffect(() => {
     if (activeTab !== 'data') return;
@@ -361,14 +604,35 @@ export default function App() {
     );
     if (targetIndex < 0) return;
 
-    const targetRow = tableBodyRef.current.children[targetIndex];
+    const targetVisibleIndex = targetIndex - inventoryPageStart - inventoryVisibleStart;
+    if (targetVisibleIndex < 0 || targetVisibleIndex >= inventoryVisibleRows.length) {
+      if (tableWrapRef.current) {
+        tableWrapRef.current.scrollTop = Math.max(0, (targetIndex - inventoryPageStart) * inventoryRowHeight);
+      }
+      return;
+    }
+
+    const targetRow = tableBodyRef.current.children[targetVisibleIndex + 1];
     if (targetRow && typeof targetRow.scrollIntoView === 'function') {
       targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [activeTab, scans, filteredRows, barcodeColName]);
+  }, [activeTab, barcodeColName, filteredRows, inventoryPageStart, inventoryRowHeight, inventoryVisibleRows, inventoryVisibleStart, scans]);
 
   const statusColors = { success: 'var(--green)', duplicate: 'var(--amber)', error: 'var(--red)', idle: 'var(--muted)' };
   const statusLabels = { success: 'Updated', duplicate: 'Qty +1', error: 'Error', idle: 'Ready' };
+  const backupStatusMeta = backupProgress?.status === 'error'
+    ? { label: 'Failed', color: 'var(--red)' }
+    : backupProgress?.status === 'success'
+      ? { label: 'Completed', color: 'var(--green)' }
+      : { label: 'Running', color: 'var(--accent2)' };
+  const backupProgressValue = typeof backupProgress?.progress === 'number'
+    ? Math.max(0, Math.min(100, backupProgress.progress))
+    : backupProgress?.status === 'running'
+      ? 55
+      : backupProgress?.status === 'success'
+        ? 100
+        : 0;
+  const backupIsBusy = backupProgress?.status === 'running';
 
   const applyReorderToExcel = async (newCols) => {
     if (!window.electronAPI || !filePath) return;
@@ -406,13 +670,64 @@ export default function App() {
     }
   };
 
-  const orderedNames = columnsList.map(c => c.name).filter(n => n.trim());
-  const allHeadersSet = new Set(orderedNames);
-  headers.forEach(h => allHeadersSet.add(h));
-  const displayHeaders = Array.from(allHeadersSet).filter(h => h !== 'Scan Mode' && h !== 'scan_mode');
-
   return (
-    <div className={`app-shell ${scanFlash ? `flash-${scanFlash}` : ''}`}>
+    <>
+      {showUpdatePrompt && updateInfo && (
+        <div className="update-overlay" role="dialog" aria-modal="true" aria-labelledby="update-overlay-title">
+          <div className="update-overlay-card">
+            <div className="update-overlay-badge">Update available</div>
+            <h2 id="update-overlay-title" className="update-overlay-title">
+              {updateInfo.name || 'Latest release'}
+            </h2>
+            <p className="update-overlay-copy">
+              A newer version is ready while you are online. You can install it now or keep working and skip this release for the moment.
+            </p>
+
+            <div className="update-overlay-grid">
+              <div className="update-overlay-metric">
+                <span>Current</span>
+                <strong>{updateInfo.currentVersion || appVersion || 'Unknown'}</strong>
+              </div>
+              <div className="update-overlay-metric">
+                <span>Latest</span>
+                <strong>{updateInfo.latestVersion || updateInfo.tag || 'Unknown'}</strong>
+              </div>
+              <div className="update-overlay-metric">
+                <span>Status</span>
+                <strong>{isOnline ? 'Online' : 'Offline'}</strong>
+              </div>
+              <div className="update-overlay-metric">
+                <span>Published</span>
+                <strong>{updateInfo.publishedAt ? new Date(updateInfo.publishedAt).toLocaleDateString() : 'Unknown'}</strong>
+              </div>
+            </div>
+
+            {updateInfo.body && (
+              <div className="update-overlay-notes">
+                {updateInfo.body}
+              </div>
+            )}
+
+            <div className="update-overlay-actions">
+              <button className="btn-accent btn-lg" onClick={downloadAndInstallUpdate} disabled={updateBusy || !updateInfo?.assetUrl}>
+                <IconDownload /> Install Update
+              </button>
+              <button className="btn-ghost btn-lg" onClick={dismissUpdatePrompt} disabled={updateBusy}>
+                Skip for now
+              </button>
+              <button className="btn-ghost btn-lg" onClick={checkForUpdates} disabled={updateBusy}>
+                <IconRefresh /> Check again
+              </button>
+            </div>
+
+            <div className="update-overlay-footer">
+              {updateStatus}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`app-shell ${scanFlash ? `flash-${scanFlash}` : ''}`}>
       {lastScanPopup && (
         <div className="last-scan-popup" role="status" aria-live="polite">
           <div className="last-scan-title">Last {lastScanPopup.source === 'manual' ? 'Entered' : 'Scanned'}</div>
@@ -558,11 +873,11 @@ export default function App() {
                   <div className="stat-label">Items</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-value">{formatNumber(scans.filter(s => s.isDuplicate).length, { maximumFractionDigits: 0 })}</div>
+                  <div className="stat-value">{formatNumber(duplicateCount, { maximumFractionDigits: 0 })}</div>
                   <div className="stat-label">Updates</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-value">{formatNumber(rows.reduce((a, r) => a + (Number(r[quantityColName]) || 0), 0), { maximumFractionDigits: 0 })}</div>
+                  <div className="stat-value">{formatNumber(totalQuantity, { maximumFractionDigits: 0 })}</div>
                   <div className="stat-label">Total Qty</div>
                 </div>
                 <div className="stat-card">
@@ -617,8 +932,16 @@ export default function App() {
                 <div className="search-box">
                   <IconSearch />
                   <input className="search-input" placeholder="Filter rows…" value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)} />
-                  {searchQuery && <button className="search-clear" onClick={() => setSearchQuery('')}>×</button>}
+                    onChange={e => {
+                      setSearchQuery(e.target.value);
+                      setInventoryPage(1);
+                      setInventoryScrollTop(0);
+                    }} />
+                  {searchQuery && <button className="search-clear" onClick={() => {
+                    setSearchQuery('');
+                    setInventoryPage(1);
+                    setInventoryScrollTop(0);
+                  }}>×</button>}
                 </div>
                 <span className="row-count">{filteredRows.length} of {rows.length}</span>
               </div>
@@ -629,18 +952,47 @@ export default function App() {
   <BillingModule 
     filePath={filePath}
     sheetName={sheetName}
-    columnConfig={{ barcodeColumn: barcodeColName, quantityColumn: quantityColName, timestampColumn: timestampColName, columnsOrder: orderedNames }}
+    columnConfig={columnConfig}
   />
 ) : activeTab === 'barcode' ? (
-          <BarcodeGenerator filePath={filePath} sheetName={sheetName} columnConfig={{
-            barcodeColumn: barcodeColName,
-            quantityColumn: quantityColName,
-            timestampColumn: timestampColName,
-            columnsOrder: columnsList.map(c => c.name).filter(n => n.trim()),
-            extraColumns: columnsList.filter(c => !c.isDefault)
-          }} />
+          <BarcodeGenerator filePath={filePath} sheetName={sheetName} columnConfig={columnConfig} />
 ) : activeTab === 'data' ? (
-  <div className="table-wrap">
+  <div className="table-wrap" ref={tableWrapRef} onScroll={(e) => setInventoryScrollTop(e.currentTarget.scrollTop)}>
+    {rows.length > 0 && filteredRows.length > 0 && (
+      <div className="pagination-bar">
+        <div className="pagination-meta">
+          Showing {inventoryPageStart + 1}-{Math.min(inventoryPageStart + inventoryPageSize, filteredRows.length)} of {filteredRows.length}
+        </div>
+        <div className="pagination-controls">
+          <button className="btn-ghost btn-sm" onClick={() => {
+            setInventoryPage(1);
+            setInventoryScrollTop(0);
+          }} disabled={currentInventoryPage === 1}>
+            First
+          </button>
+          <button className="btn-ghost btn-sm" onClick={() => {
+            setInventoryPage((p) => Math.max(1, p - 1));
+            setInventoryScrollTop(0);
+          }} disabled={currentInventoryPage === 1}>
+            Prev
+          </button>
+          <span className="pagination-page">Page {currentInventoryPage} / {totalInventoryPages}</span>
+          <button className="btn-ghost btn-sm" onClick={() => {
+            setInventoryPage((p) => Math.min(totalInventoryPages, p + 1));
+            setInventoryScrollTop(0);
+          }} disabled={currentInventoryPage >= totalInventoryPages}>
+            Next
+          </button>
+          <button className="btn-ghost btn-sm" onClick={() => {
+            setInventoryPage(totalInventoryPages);
+            setInventoryScrollTop(0);
+          }} disabled={currentInventoryPage >= totalInventoryPages}>
+            Last
+          </button>
+        </div>
+      </div>
+    )}
+
     {searchQuery && filteredRows.length === 0 ? (
                 <div className="empty-state">
                   <h2 className="empty-h">No results found</h2>
@@ -672,11 +1024,16 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody ref={tableBodyRef}>
-                    {filteredRows.map((row, i) => {
+                    {inventoryTopSpacer > 0 && (
+                      <tr aria-hidden="true" className="virtual-spacer-row">
+                        <td colSpan={displayHeaders.length + 1} style={{ height: `${inventoryTopSpacer}px`, padding: 0, border: 'none' }} />
+                      </tr>
+                    )}
+                    {inventoryVisibleRows.map((row, i) => {
                       const isLatest = scans[0]?.barcode === String(row[barcodeColName]);
                       return (
                         <tr key={i} className={isLatest ? 'row-fresh' : ''}>
-                          <td className="td-num">{i + 1}</td>
+                          <td className="td-num">{inventoryPageStart + inventoryVisibleStart + i + 1}</td>
                           {displayHeaders.map(h => (
                             <td key={h} className={
                               h === barcodeColName ? 'td-code' :
@@ -694,6 +1051,11 @@ export default function App() {
                         </tr>
                       );
                     })}
+                    {inventoryBottomSpacer > 0 && (
+                      <tr aria-hidden="true" className="virtual-spacer-row">
+                        <td colSpan={displayHeaders.length + 1} style={{ height: `${inventoryBottomSpacer}px`, padding: 0, border: 'none' }} />
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               )}
@@ -804,6 +1166,51 @@ export default function App() {
               </div>
 
               <div className="settings-block">
+                <h3 className="settings-h">Backup & Restore</h3>
+                <p className="settings-p">
+                  Back up the current Excel workbook together with product, invoice, custom field, and shop settings data into one .xlsx file.
+                </p>
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button className="btn-accent" onClick={handleCreateBackup} disabled={!filePath || backupIsBusy}>
+                    {backupIsBusy && backupProgress?.operation === 'backup:createFull' ? 'Backing Up...' : 'Backup All Data'}
+                  </button>
+                  <button className="btn-ghost" onClick={handleRestoreBackup} disabled={backupIsBusy}>
+                    {backupIsBusy && backupProgress?.operation === 'backup:restoreFull' ? 'Restoring...' : 'Restore From Backup'}
+                  </button>
+                </div>
+
+                <div className={`backup-progress-card ${backupProgress?.status || 'idle'}`} aria-live="polite" aria-busy={backupIsBusy}>
+                  <div className="backup-progress-header">
+                    <div>
+                      <div className="backup-progress-title">
+                        {backupProgress?.operation === 'backup:restoreFull' ? 'Restore progress' : backupProgress?.operation === 'backup:createFull' ? 'Backup progress' : 'Backup progress'}
+                      </div>
+                      <div className="backup-progress-subtitle">
+                        {backupProgress?.phase || 'Waiting for backup or restore to start'}
+                      </div>
+                    </div>
+                    <div className="backup-progress-badge" style={{ '--bp-color': backupStatusMeta.color }}>
+                      {backupStatusMeta.label}
+                    </div>
+                  </div>
+
+                  <div className="backup-progress-bar">
+                    <div className="backup-progress-fill" style={{ width: `${backupProgressValue}%`, '--bp-color': backupStatusMeta.color }} />
+                  </div>
+
+                  <div className="backup-progress-footer">
+                    <span>{backupProgressValue}%</span>
+                    <span>{backupProgress?.details || (backupProgress?.status === 'success' ? 'Operation completed successfully' : backupProgress?.status === 'error' ? 'Operation failed' : 'Idle')}</span>
+                  </div>
+                </div>
+
+                <div className="field-hint" style={{ marginTop: '10px' }}>
+                  Restore writes the workbook data back into the selected Excel file and merges the database data into SQLite.
+                </div>
+              </div>
+
+              <div className="settings-block">
                 <h3 className="settings-h">Update Center</h3>
                 <div className="update-current-version">Current Version: {appVersion || 'Unknown'}</div>
 
@@ -848,6 +1255,7 @@ export default function App() {
         </main>
       </div>
     </div>
+    </>
   );
 }
 

@@ -75,6 +75,20 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
   }, [view, loadInvoices]);
 
   useEffect(() => {
+    const handleRestoredData = () => {
+      void refreshProducts();
+      loadInvoices();
+      window.electronAPI?.getShopConfig().then(cfg => {
+        setShopConfig(cfg || {});
+        if (cfg?.cashier) setCashier(cfg.cashier);
+      });
+    };
+
+    window.addEventListener('data:restored', handleRestoredData);
+    return () => window.removeEventListener('data:restored', handleRestoredData);
+  }, [loadInvoices, refreshProducts]);
+
+  useEffect(() => {
     productsRef.current = products;
   }, [products]);
 

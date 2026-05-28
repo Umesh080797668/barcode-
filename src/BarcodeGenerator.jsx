@@ -164,6 +164,15 @@ export default function BarcodeGenerator({ filePath, sheetName, columnConfig }) 
     return () => clearTimeout(timer);
   }, [loadAll]);
 
+  useEffect(() => {
+    const handleRestoredData = () => {
+      void loadAll('');
+    };
+
+    window.addEventListener('data:restored', handleRestoredData);
+    return () => window.removeEventListener('data:restored', handleRestoredData);
+  }, [loadAll]);
+
   // ── search debounce ─────────────────────────────────────────────────────
   const handleSearch = (v) => {
     setSearch(v);
