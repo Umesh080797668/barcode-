@@ -11,7 +11,7 @@ const generateInvoiceNumber = () => {
   return `INV-${year}-${month}${day}-${suffix}`;
 };
 
-export default function BillingModule({ filePath, sheetName, columnConfig }) {
+export default function BillingModule() {
   const [view, setView] = useState('new'); // 'new' | 'history' | 'settings'
   const [products, setProducts] = useState([]);
   const [cartItems, setCartItems] = useState([]);
@@ -151,27 +151,23 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
 
   const buildProductFromInventoryRow = useCallback((row, fallbackBarcode) => {
     if (!row) return null;
-    const barcodeColumn = columnConfig?.barcodeColumn || 'Barcode';
-    const barcode = barcodeText(row[barcodeColumn] || fallbackBarcode);
+    // Products now come from DB with lowercase field names
+    const barcode = barcodeText(row.barcode || fallbackBarcode);
     if (!barcode) return null;
 
-    const rawMode = String(row['Scan Mode'] ?? row.scan_mode ?? '').trim().toLowerCase();
-    const scanMode = rawMode === 'normal' ? 'normal' : 'inventory_only';
+    const scanMode = String(row.scan_mode ?? '').trim() === 'inventory_only' ? 'inventory_only' : 'normal';
     if (scanMode === 'inventory_only') return null;
-
-    const rawName = row.Name ?? row.name ?? row.Product ?? row.product ?? barcode;
-    const rawPrice = row.Price ?? row.price ?? row.SellingPrice ?? row.sellingPrice ?? row.Rate ?? row.rate ?? 0;
 
     return {
       barcode,
-      name: String(rawName || barcode),
-      price: Number(rawPrice) || 0,
-      quantity: Number(row[columnConfig?.quantityColumn || 'Quantity']) || 1,
+      name: String(row.name || barcode),
+      price: Number(row.price) || 0,
+      quantity: Number(row.quantity) || 1,
       scan_mode: scanMode,
-      warranty: row.warranty || row.Warranty || '',
-      remaining_warranty: row.remaining_warranty || row.remainingWarranty || '',
+      warranty: row.warranty || '',
+      remaining_warranty: row.remaining_warranty || '',
     };
-  }, [columnConfig]);
+  }, []);
 
   const resolveScannedProduct = useCallback(async (barcode) => {
     const bc = barcodeText(barcode);
@@ -193,20 +189,8 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
       }
     }
 
-    if (isElectron && filePath) {
-      const sheet = await window.electronAPI.readExcel(filePath, sheetName);
-      if (sheet.success && Array.isArray(sheet.rows)) {
-        const barcodeColumn = columnConfig?.barcodeColumn || 'Barcode';
-        const row = sheet.rows.find((item) => barcodeText(item[barcodeColumn]) === bc);
-        if (row) {
-          prod = buildProductFromInventoryRow(row, bc);
-          if (prod) return prod;
-        }
-      }
-    }
-
     return null;
-  }, [buildProductFromInventoryRow, columnConfig, filePath, isElectron, sheetName]);
+  }, [buildProductFromInventoryRow, isElectron]);
 
   const updateCartItem = (barcode, field, value) => {
     const targetBarcode = barcodeText(barcode);
@@ -572,18 +556,9 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
         invoice.invoice_no = saveResult.invoice_no;
         invoice.created_at = new Date().toISOString();
 
-        // Sync stock changes to Excel if a file is selected
-        if (filePath) {
-          const changes = invoice.items.map(i => ({ barcode: i.barcode, quantity: i.quantity }));
-          const syncRes = await window.electronAPI.applyStockChanges({ filePath, changes, columnConfig, sheetName });
-          if (!syncRes.success) {
-            setStatusMsg(`⚠️ ${isReturn ? 'Supplier return saved' : 'Invoice saved'} but Excel sync failed: ` + syncRes.error);
-          } else {
-            setStatusMsg(isReturn ? '✅ Supplier return saved & Inventory updated' : '✅ Saved & Inventory updated');
-          }
-        } else {
-          setStatusMsg(`✅ ${isReturn ? 'Supplier return saved' : 'Saved'}! Invoice: ` + saveResult.invoice_no);
-        }
+        // Notify inventory that stock has changed (DB update is handled by saveInvoice)
+        window.dispatchEvent(new Event('products:changed'));
+        setStatusMsg(`✅ ${isReturn ? 'Supplier return saved' : 'Saved'}! Invoice: ` + saveResult.invoice_no);
 
         // After save, optionally print
         if (printAfter) {
@@ -631,7 +606,7 @@ export default function BillingModule({ filePath, sheetName, columnConfig }) {
       window.removeEventListener('message', onGlobal);
       window.removeEventListener('products:changed', onProductsChanged);
     };
-  }, [addToCart, filePath, columnConfig, sheetName, selectedPrinter, shopConfig, refreshProducts, isElectron, resolveScannedProduct]);
+  }, [addToCart, selectedPrinter, shopConfig, refreshProducts, isElectron, resolveScannedProduct]);
 
   const reprintInvoice = async (invoiceNo) => {
     const r = await window.electronAPI.getInvoice(invoiceNo);

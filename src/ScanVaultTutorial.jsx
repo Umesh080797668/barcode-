@@ -46,9 +46,9 @@ const steps = [
   {
     id: "file", label: "Select file",
     title: "Choose your Excel file",
-    subtitle: "Point ScanVault at any .xlsx file on your computer.",
+    subtitle: "All data is stored directly in the local SQLite database.",
     content: [
-      { emoji: "📂", text: "Click `Browse` in the left sidebar to select a .xlsx file on your disk." },
+      { emoji: "📂", text: "Just start scanning — data saves automatically to the database." },
       { emoji: "✨", text: "No file yet? ScanVault creates columns automatically on your first scan." },
       { emoji: "📑", text: "Multiple sheets? Switch between them using the sheet chips in the sidebar." },
     ],
@@ -129,7 +129,7 @@ function HeroVisual() {
         }}>OFFLINE</span>
       </div>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"center", maxWidth:340 }}>
-        {[["📡","No internet needed"],["⚡","Real-time updates"],["📄","Direct .xlsx write"],["↩","Undo / Redo"]].map(([icon,label]) => (
+        {[["📡","No internet needed"],["⚡","Real-time updates"],["📄","Local SQLite"],["↩","Undo / Redo"]].map(([icon,label]) => (
           <div key={label} style={{
             display:"flex", alignItems:"center", gap:5,
             fontSize:11, padding:"4px 10px", borderRadius:7,
@@ -218,7 +218,7 @@ function FileVisual() {
         }}>
           <span style={{fontSize:16}}>📗</span>
           <div>
-            <div style={{fontSize:10, fontWeight:700, color:C.textPri}}>inventory.xlsx</div>
+            <div style={{fontSize:10, fontWeight:700, color:C.textPri}}>scanvault.db</div>
             <div style={{fontSize:8, color:C.textMut}}>C:\Documents\…</div>
           </div>
         </div>
@@ -392,7 +392,7 @@ function DoneVisual() {
       <div style={{display:"flex", flexDirection:"column", gap:6, width:"100%", maxWidth:290}}>
         {[
           "Scanner connected via USB or Bluetooth (HID mode)",
-          "Excel .xlsx file selected in the sidebar",
+          "Ready to scan — no file setup needed",
           "Scan barcodes to create / update inventory rows",
           "Search, filter, undo mistakes, export CSV anytime",
         ].map(label => (

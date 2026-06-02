@@ -67,9 +67,6 @@ async function apiCall(method, ...args) {
     else memStore.products.unshift({ ...p, id: Date.now(), created_at: new Date().toISOString() });
     return { success: true, barcode: p?.barcode };
   }
-  if (method === 'syncInventoryProduct') {
-    return { success: true };
-  }
   if (method === 'deleteProduct') {
     memStore.products = memStore.products.filter(x => x.id !== args[0]);
     return { success: true };
@@ -114,7 +111,7 @@ function renderBarcode(svgEl, value, opts = {}) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════════════════════
-export default function BarcodeGenerator({ filePath, sheetName, columnConfig }) {
+export default function BarcodeGenerator() {
   const [view, setView]           = useState('list'); // 'list' | 'create' | 'preview' | 'fields'
   const [products, setProducts]   = useState([]);
   const [customFields, setCF]     = useState([]);
@@ -229,19 +226,6 @@ export default function BarcodeGenerator({ filePath, sheetName, columnConfig }) 
     const res = await apiCall('saveProduct', editProduct);
     setSaving(false);
     if (res.success) {
-      if (filePath) {
-        await apiCall('syncInventoryProduct', {
-          filePath,
-          sheetName,
-          columnConfig,
-          product: {
-            ...editProduct,
-            quantity: Number(editProduct.quantity) || 0,
-            price: Number(editProduct.price) || 0,
-            scan_mode: editProduct.scan_mode || 'normal',
-          },
-        });
-      }
       showToast('Product saved ✓');
       await loadAll();
       notifyProductsChanged();

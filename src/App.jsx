@@ -8,56 +8,48 @@ import BillingModule from './BillingModule';
 export default function App() {
   const UPDATE_REPO = 'Umesh080797668/barcode-';
   const UPDATE_SKIP_KEY = 'scanvault_update_skip_version_v1';
-  const [filePath, setFilePath] = useState('');
-  const [sheetName, setSheetName] = useState('Sheet1');
-  const [availableSheets, setAvailableSheets] = useState(['Sheet1']);
-  const [scans, setScans] = useState([]);
-  const [rows, setRows] = useState([]);
-  const [headers, setHeaders] = useState([]);
-  const [lastStatus, setStatus] = useState('idle');
-  const [statusMsg, setStatusMsg] = useState('Ready to scan');
-  const [activeTab, setActiveTab] = useState('data');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [scanFlash, setScanFlash] = useState(null);
+
+  // ── State ────────────────────────────────────────────────────────────────
+  const [scans, setScans]                     = useState([]);
+  const [rows, setRows]                       = useState([]);
+  const [headers, setHeaders]                 = useState([]);
+  const [lastStatus, setStatus]               = useState('idle');
+  const [statusMsg, setStatusMsg]             = useState('Ready to scan');
+  const [activeTab, setActiveTab]             = useState('data');
+  const [searchQuery, setSearchQuery]         = useState('');
+  const [scanFlash, setScanFlash]             = useState(null);
   const [totalScansToday, setTotalScansToday] = useState(0);
-  const [uniqueItems, setUniqueItems] = useState(0);
-  const [productsCount, setProductsCount] = useState(0);
-  const [newSheetInput, setNewSheetInput] = useState('');
-  const [showNewSheetInput, setShowNewSheetInput] = useState(false);
-  const [manualInput, setManualInput] = useState('');
+  const [uniqueItems, setUniqueItems]         = useState(0);
+  const [productsCount, setProductsCount]     = useState(0);
+  const [manualInput, setManualInput]         = useState('');
   const [inventoryAddMode, setInventoryAddMode] = useState('inventory_only');
-  const [lastScanPopup, setLastScanPopup] = useState(null);
-  const [inventoryPage, setInventoryPage] = useState(1);
+  const [lastScanPopup, setLastScanPopup]     = useState(null);
+  const [inventoryPage, setInventoryPage]     = useState(1);
   const [inventoryScrollTop, setInventoryScrollTop] = useState(0);
   const [inventoryViewportHeight, setInventoryViewportHeight] = useState(0);
-  const [appVersion, setAppVersion] = useState('');
-  const [updateStatus, setUpdateStatus] = useState('Idle');
-  const [updateBusy, setUpdateBusy] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState(null);
-  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [appVersion, setAppVersion]           = useState('');
+  const [updateStatus, setUpdateStatus]       = useState('Idle');
+  const [updateBusy, setUpdateBusy]           = useState(false);
+  const [updateInfo, setUpdateInfo]           = useState(null);
+  const [isOnline, setIsOnline]               = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
-  const [backupProgress, setBackupProgress] = useState(null);
+  const [backupProgress, setBackupProgress]   = useState(null);
+  const [csvExportPath, setCsvExportPath]     = useState(null);
+  const [backupScheduleInfo, setBackupScheduleInfo] = useState(null);
+  const [lastAutoBackup, setLastAutoBackup]   = useState(null);
 
-  const [barcodeColName] = useState('Barcode');
-  const [quantityColName] = useState('Quantity');
-  const [timestampColName] = useState('Last Scanned');
-
-  // Unified Columns List (Defaults + Extras for ordering)
-  const [columnsList, setColumnsList] = useState([
-    { id: 'barcode', name: 'Barcode', isDefault: true, defaultValue: '' },
-    { id: 'name',    name: 'Name',    isDefault: true, defaultValue: '' },
-    { id: 'quantity', name: 'Quantity', isDefault: true, defaultValue: '' },
-    { id: 'price',   name: 'Price',   isDefault: true, defaultValue: '' },
-    { id: 'timestamp', name: 'Last Scanned', isDefault: true, defaultValue: '' }
-  ]);
+  const barcodeColName   = 'Barcode';
+  const quantityColName  = 'Quantity';
+  const timestampColName = 'Last Scanned';
 
   const barcodeBuffer = useRef('');
-  const bufferTimer = useRef(null);
-  const statusTimer = useRef(null);
-  const popupTimer = useRef(null);
-  const tableBodyRef = useRef(null);
-  const tableWrapRef = useRef(null);
+  const bufferTimer   = useRef(null);
+  const statusTimer   = useRef(null);
+  const popupTimer    = useRef(null);
+  const tableBodyRef  = useRef(null);
+  const tableWrapRef  = useRef(null);
 
+  // ── App version ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (window.electronAPI?.getAppVersion) {
       window.electronAPI.getAppVersion().then((result) => {
@@ -66,19 +58,103 @@ export default function App() {
     }
   }, []);
 
+  // ── Online detection ─────────────────────────────────────────────────────
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline  = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
+    window.addEventListener('online',  handleOnline);
     window.addEventListener('offline', handleOffline);
-
     return () => {
-      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('online',  handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
+  // ── Backup progress listener ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!window.electronAPI?.onBackupProgress) return undefined;
+    return window.electronAPI.onBackupProgress((payload) => {
+      if (!payload?.operation) return;
+      setBackupProgress({
+        operation: payload.operation,
+        status:    payload.status || 'running',
+        phase:     payload.phase  || '',
+        progress:  typeof payload.progress === 'number' ? payload.progress : null,
+        details:   payload.details || '',
+        updatedAt: Date.now(),
+      });
+    });
+  }, []);
+
+  // ── Auto backup notification ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!window.electronAPI?.onAutoBackupComplete) return undefined;
+    return window.electronAPI.onAutoBackupComplete((payload) => {
+      setLastAutoBackup(payload);
+      setTempStatus('success', 'Auto-backup completed (9 AM)');
+    });
+  }, []);
+
+  // ── Load CSV export path & schedule info on mount ────────────────────────
+  useEffect(() => {
+    if (!window.electronAPI) return;
+    window.electronAPI.csvGetExportPath?.().then(r => {
+      if (r?.success) setCsvExportPath(r.exportPath);
+    });
+    window.electronAPI.getBackupSchedule?.().then(r => {
+      if (r?.success) setBackupScheduleInfo(r);
+    });
+  }, []);
+
+  // ── Load products from DB into inventory table ────────────────────────────
+  const loadInventoryFromDB = useCallback(async () => {
+    if (!window.electronAPI) return;
+    try {
+      const r = await window.electronAPI.getProducts();
+      if (r?.success) {
+        const products = r.products || [];
+        // Build rows and headers dynamically from product data + custom fields
+        const cfKeys = new Set();
+        for (const p of products) {
+          if (p.custom_fields && typeof p.custom_fields === 'object') {
+            Object.keys(p.custom_fields).forEach(k => cfKeys.add(k));
+          }
+        }
+        const cfKeysArr = Array.from(cfKeys);
+        const baseHeaders = [barcodeColName, 'Name', 'SKU', 'Price', quantityColName, 'Category', timestampColName, ...cfKeysArr];
+        const mappedRows = products.map(p => {
+          const row = {
+            [barcodeColName]:   p.barcode     || '',
+            'Name':             p.name        || '',
+            'SKU':              p.sku         || '',
+            'Price':            p.price       ?? 0,
+            [quantityColName]:  p.quantity    ?? 0,
+            'Category':         p.category    || '',
+            [timestampColName]: p.updated_at  || p.created_at || '',
+          };
+          cfKeysArr.forEach(k => { row[k] = p.custom_fields?.[k] ?? ''; });
+          return row;
+        });
+        setHeaders(baseHeaders);
+        setRows(mappedRows);
+        setProductsCount(products.length);
+        setUniqueItems(products.length);
+        setInventoryPage(1);
+        setInventoryScrollTop(0);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { loadInventoryFromDB(); }, [loadInventoryFromDB]);
+
+  // Reload when products change externally
+  useEffect(() => {
+    const handler = () => loadInventoryFromDB();
+    window.addEventListener('products:changed', handler);
+    return () => window.removeEventListener('products:changed', handler);
+  }, [loadInventoryFromDB]);
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
   const showLastScanPopup = useCallback((entry) => {
     if (activeTab !== 'data') return;
     setLastScanPopup(entry);
@@ -98,81 +174,25 @@ export default function App() {
     }, 2500);
   };
 
-  const loadData = useCallback(async (overrideFilePath = filePath) => {
-    if (!window.electronAPI || !overrideFilePath) return;
-    const result = await window.electronAPI.readExcel(overrideFilePath, sheetName);
-      if (result.success) {
-        setHeaders(result.headers || []);
-        setRows(result.rows || []);
-        setAvailableSheets(result.sheetNames || ['Sheet1']);
-        setUniqueItems(result.rows?.length || 0);
-        setInventoryPage(1);
-        setInventoryScrollTop(0);
-        if (result.sheetNames && !result.sheetNames.includes(sheetName)) {
-          setSheetName(result.sheetNames[0] || 'Sheet1');
-        }
-      } else {
-        setTempStatus('error', result.error || 'Failed to read file');
-      }
-  }, [filePath, sheetName]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void loadData();
-    }, 0);
-
-    return () => clearTimeout(timer);
-  }, [loadData]);
-
-  useEffect(() => {
-    if (!window.electronAPI?.onBackupProgress) return undefined;
-
-    return window.electronAPI.onBackupProgress((payload) => {
-      if (!payload?.operation) return;
-      setBackupProgress({
-        operation: payload.operation,
-        status: payload.status || 'running',
-        phase: payload.phase || '',
-        progress: typeof payload.progress === 'number' ? payload.progress : null,
-        details: payload.details || '',
-        updatedAt: Date.now(),
-      });
-    });
-  }, []);
-
-  // Keep product count in sync when product DB changes (barcode creator)
-  useEffect(() => {
-    const onProductsChanged = async () => {
-      if (!window.electronAPI) return;
-      try {
-        const r = await window.electronAPI.getProducts();
-        if (r && r.success) setProductsCount((r.products || []).length);
-        if (filePath) loadData();
-      } catch { /* ignore */ }
-    };
-    window.addEventListener('products:changed', onProductsChanged);
-    // initial
-    onProductsChanged();
-    return () => window.removeEventListener('products:changed', onProductsChanged);
-  }, [filePath, loadData]);
-
+  // ── Barcode processing (DB-based) ─────────────────────────────────────────
   const processBarcode = useCallback(async (barcode, source = 'scan') => {
     if (!window.electronAPI) {
+      // Browser / dev mode fallback — just update local state
       const existing = rows.find(r => String(r[barcodeColName]) === String(barcode));
       const now = new Date().toLocaleString();
       let newRows;
       let isDuplicate = false;
       if (existing) {
-        newRows = rows.map(r => String(r[barcodeColName]) === String(barcode)
-          ? { ...r, [quantityColName]: (r[quantityColName] || 0) + 1, [timestampColName]: now }
-          : r);
+        newRows = rows.map(r =>
+          String(r[barcodeColName]) === String(barcode)
+            ? { ...r, [quantityColName]: (r[quantityColName] || 0) + 1, [timestampColName]: now }
+            : r
+        );
         isDuplicate = true;
       } else {
         newRows = [...rows, { [barcodeColName]: barcode, [quantityColName]: 1, [timestampColName]: now }];
-        if (headers.length === 0) setHeaders([barcodeColName, quantityColName, timestampColName]);
       }
       setRows(newRows);
-      setInventoryPage(Math.floor((newRows.findIndex(r => String(r[barcodeColName]) === String(barcode))) / inventoryPageSize) + 1 || 1);
       setUniqueItems(newRows.length);
       const entry = { barcode, time: new Date().toLocaleTimeString(), isDuplicate, source };
       setScans(prev => [entry, ...prev.slice(0, 99)]);
@@ -182,84 +202,72 @@ export default function App() {
       return;
     }
 
-    if (activeTab === 'barcode') {
-      return;
-    }
+    if (activeTab === 'barcode') return;
 
-    if (!filePath) {
-      setTempStatus('error', 'Select an Excel file first');
-      return;
-    }
+    try {
+      // Get or create product in DB
+      const getResult = await window.electronAPI.getProduct(barcode);
+      const existing  = getResult?.product || null;
 
-    const result = await window.electronAPI.updateExcel({
-      filePath, barcode,
-      columnConfig: {
-        barcodeColumn: barcodeColName,
-        quantityColumn: quantityColName,
-        timestampColumn: timestampColName,
-        columnsOrder: columnsList.map(c => c.name).filter(n => n.trim()),
-        extraColumns: columnsList.filter(c => !c.isDefault)
-      },
-      sheetName
-    });
-
-    if (result.success) {
-      if (result.headers && result.headers.length > 0) {
-        setHeaders(result.headers);
-      } else {
-        setHeaders(result.rows[0] ? Object.keys(result.rows[0]) : headers);
-      }
-      setRows(result.rows);
-      const targetIndex = (result.rows || []).findIndex(r => String(r[barcodeColName]) === String(barcode));
-      if (targetIndex >= 0) {
-        setInventoryPage(Math.floor(targetIndex / inventoryPageSize) + 1);
-      }
-      setUniqueItems(result.rows.length);
-      setAvailableSheets(result.sheetNames || availableSheets);
-      const entry = { barcode, time: new Date().toLocaleTimeString(), isDuplicate: result.isDuplicate, source };
-      setScans(prev => [entry, ...prev.slice(0, 99)]);
-      showLastScanPopup(entry);
-      setTotalScansToday(p => p + 1);
-      setTempStatus(result.isDuplicate ? 'duplicate' : 'success',
-        result.isDuplicate ? `+1 qty: ${barcode}` : `New item: ${barcode}`);
-
-      const row = (result.rows || []).find(r => String(r[barcodeColName]) === String(barcode)) || null;
-      if (row) {
-        const currentProduct = await window.electronAPI.getProduct(barcode);
-        const payload = {
-          barcode,
-          name: row.Name ?? row.name ?? currentProduct?.product?.name ?? null,
-          price: row.Price ?? row.price ?? currentProduct?.product?.price ?? 0,
-          quantity: Number(row[quantityColName] ?? row.Quantity ?? currentProduct?.product?.quantity ?? 0),
-          scan_mode: inventoryAddMode,
-          sku: currentProduct?.product?.sku ?? row.sku ?? null,
-          category: currentProduct?.product?.category ?? row.category ?? null,
-          custom_fields: currentProduct?.product?.custom_fields ?? {},
+      const now = new Date().toISOString();
+      if (existing) {
+        // Increment quantity in DB
+        const updated = {
+          ...existing,
+          quantity: (existing.quantity || 0) + 1,
+          updated_at: now,
         };
-        await window.electronAPI.syncProduct(payload);
+        await window.electronAPI.saveProduct(updated);
+        const entry = { barcode, time: new Date().toLocaleTimeString(), isDuplicate: true, source };
+        setScans(prev => [entry, ...prev.slice(0, 99)]);
+        showLastScanPopup(entry);
+        setTotalScansToday(p => p + 1);
+        setTempStatus('duplicate', `+1 qty: ${barcode}`);
+      } else {
+        // New product: create with quantity 1
+        const newProduct = {
+          barcode,
+          name: '',
+          sku: '',
+          price: 0,
+          quantity: 1,
+          scan_mode: inventoryAddMode,
+          category: '',
+          custom_fields: {},
+        };
+        const saveResult = await window.electronAPI.saveProduct(newProduct);
+        if (!saveResult?.success) {
+          setTempStatus('error', saveResult?.error || 'Save failed');
+          return;
+        }
+        const entry = { barcode, time: new Date().toLocaleTimeString(), isDuplicate: false, source };
+        setScans(prev => [entry, ...prev.slice(0, 99)]);
+        showLastScanPopup(entry);
+        setTotalScansToday(p => p + 1);
+        setTempStatus('success', `New item: ${barcode}`);
       }
-    } else {
-      setTempStatus('error', result.error || 'Update failed');
+
+      // Refresh inventory table from DB
+      await loadInventoryFromDB();
+    } catch (err) {
+      setTempStatus('error', err.message || 'Scan failed');
     }
-  }, [activeTab, availableSheets, barcodeColName, columnsList, filePath, headers, inventoryAddMode, quantityColName, rows, sheetName, showLastScanPopup, timestampColName]);
+  }, [activeTab, inventoryAddMode, loadInventoryFromDB, rows, showLastScanPopup]);
 
   const handleScannedBarcode = useCallback(async (barcode, source = 'scan') => {
     if (!window.electronAPI) {
       await processBarcode(barcode, source);
       return;
     }
-
     if (activeTab === 'billing' || (activeTab === 'data' && inventoryAddMode === 'normal')) {
-      if (activeTab !== 'billing') {
-        setActiveTab('billing');
-      }
+      if (activeTab !== 'billing') setActiveTab('billing');
       window.postMessage({ action: 'billing:scan', barcode }, '*');
       return;
     }
-
     await processBarcode(barcode, source);
   }, [activeTab, inventoryAddMode, processBarcode]);
 
+  // ── Keyboard listener ─────────────────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
@@ -267,9 +275,7 @@ export default function App() {
         const barcode = barcodeBuffer.current;
         barcodeBuffer.current = '';
         clearTimeout(bufferTimer.current);
-        if (barcode.trim().length > 2) {
-          void handleScannedBarcode(barcode, 'scan');
-        }
+        if (barcode.trim().length > 2) void handleScannedBarcode(barcode, 'scan');
       } else if (e.key.length === 1) {
         barcodeBuffer.current += e.key;
         clearTimeout(bufferTimer.current);
@@ -282,179 +288,97 @@ export default function App() {
 
   useEffect(() => () => clearTimeout(popupTimer.current), []);
 
-  const handleSelectFile = async () => {
-    if (!window.electronAPI) return;
-    const p = await window.electronAPI.selectFile();
-    if (p) { setFilePath(p); setTempStatus('success', 'File loaded'); }
-  };
-
-  const handleUndo = async () => {
-    if (!window.electronAPI) return;
-    const r = await window.electronAPI.undoScan(filePath);
-    if (r.success) { setHeaders(r.headers || []); setRows(r.rows || []); setScans(p => p.slice(1)); setTempStatus('idle', 'Undo complete'); }
-    else setTempStatus('error', r.error);
-  };
-
-  const handleRedo = async () => {
-    if (!window.electronAPI) return;
-    const r = await window.electronAPI.redoScan(filePath);
-    if (r.success) { setHeaders(r.headers || []); setRows(r.rows || []); setTempStatus('idle', 'Redo complete'); }
-    else setTempStatus('error', r.error);
-  };
-
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleExport = async () => {
     if (!window.electronAPI) return;
-    const r = await window.electronAPI.exportCSV(filePath);
-    if (r.success) setTempStatus('success', `Exported: ${r.filePath.split(/[\\/]/).pop()}`);
-    else setTempStatus('error', r.error || 'Export cancelled');
+    const r = await window.electronAPI.csvExportAll();
+    if (r.success) {
+      setCsvExportPath(r.filePath);
+      setTempStatus('success', `Exported: ${r.filePath.split(/[\\/]/).pop()}`);
+    } else {
+      setTempStatus('error', r.error || 'Export cancelled');
+    }
+  };
+
+  const handleSetExportPath = async () => {
+    if (!window.electronAPI) return;
+    const r = await window.electronAPI.csvSetExportPath();
+    if (r.success) setCsvExportPath(r.exportPath);
   };
 
   const handleCreateBackup = async () => {
     if (!window.electronAPI) return;
-    setBackupProgress({
-      operation: 'backup:createFull',
-      status: 'running',
-      phase: 'Starting backup',
-      progress: 0,
-      details: 'Preparing workbook merge',
-      updatedAt: Date.now(),
-    });
-    const result = await window.electronAPI.createFullBackup({ sourceFilePath: filePath });
+    setBackupProgress({ operation: 'backup:create', status: 'running', phase: 'Starting backup', progress: 0, details: '', updatedAt: Date.now() });
+    const result = await window.electronAPI.createBackup();
     if (result.success) {
-      setBackupProgress((current) => ({
-        ...current,
-        operation: 'backup:createFull',
-        status: 'success',
-        phase: 'Backup completed',
-        progress: 100,
-        details: `Saved to ${result.backupPath.split(/[\\/]/).pop()}`,
-        updatedAt: Date.now(),
-      }));
-      setTempStatus('success', `Backup merged: ${result.backupPath.split(/[\\/]/).pop()}`);
+      setBackupProgress(prev => ({ ...prev, status: 'success', phase: 'Backup completed', progress: 100, details: `Saved to ${result.backupPath?.split(/[\\/]/).pop()}`, updatedAt: Date.now() }));
+      setTempStatus('success', 'Backup saved');
+      // Refresh schedule info
+      window.electronAPI.getBackupSchedule?.().then(r => { if (r?.success) setBackupScheduleInfo(r); });
     } else {
-      setBackupProgress((current) => ({
-        ...current,
-        operation: 'backup:createFull',
-        status: 'error',
-        phase: 'Backup failed',
-        progress: current?.progress ?? 100,
-        details: result.error || 'Backup failed',
-        updatedAt: Date.now(),
-      }));
+      setBackupProgress(prev => ({ ...prev, status: 'error', phase: 'Backup failed', progress: 100, details: result.error || 'Backup failed', updatedAt: Date.now() }));
       setTempStatus('error', result.error || 'Backup failed');
     }
   };
 
   const handleRestoreBackup = async () => {
     if (!window.electronAPI) return;
-    setBackupProgress({
-      operation: 'backup:restoreFull',
-      status: 'running',
-      phase: 'Starting restore',
-      progress: 0,
-      details: 'Opening backup workbook',
-      updatedAt: Date.now(),
-    });
-    const result = await window.electronAPI.restoreFullBackup({ targetFilePath: filePath });
+    setBackupProgress({ operation: 'backup:restore', status: 'running', phase: 'Starting restore', progress: 0, details: '', updatedAt: Date.now() });
+    const result = await window.electronAPI.restoreBackup();
     if (result.success) {
-      const restoreMessage = result.alreadySynced
-        ? 'Already synced. Nothing to restore.'
-        : `Restored ${result.restoredSheets} Excel sheet(s) and ${result.productsInserted + result.productsUpdated + result.customFieldsInserted + result.customFieldsUpdated + result.invoicesInserted + result.invoicesUpdated + result.invoiceItemsInserted + result.invoiceItemsUpdated} database row(s)`;
-      setBackupProgress((current) => ({
-        ...current,
-        operation: 'backup:restoreFull',
-        status: 'success',
-        phase: 'Restore completed',
-        progress: 100,
-        details: restoreMessage,
-        updatedAt: Date.now(),
-      }));
-      setTempStatus('success', restoreMessage);
-      if (result.targetFilePath) {
-        setFilePath(result.targetFilePath);
-        await loadData(result.targetFilePath);
-      } else {
-        await loadData();
-      }
+      setBackupProgress(prev => ({ ...prev, status: 'success', phase: 'Restore completed', progress: 100, details: 'Database restored', updatedAt: Date.now() }));
+      setTempStatus('success', 'Restore complete');
+      await loadInventoryFromDB();
       window.dispatchEvent(new Event('products:changed'));
       window.dispatchEvent(new Event('data:restored'));
     } else {
-      setBackupProgress((current) => ({
-        ...current,
-        operation: 'backup:restoreFull',
-        status: 'error',
-        phase: 'Restore failed',
-        progress: current?.progress ?? 100,
-        details: result.error || 'Restore failed',
-        updatedAt: Date.now(),
-      }));
+      setBackupProgress(prev => ({ ...prev, status: 'error', phase: 'Restore failed', progress: 100, details: result.error || 'Restore failed', updatedAt: Date.now() }));
       setTempStatus('error', result.error || 'Restore failed');
+    }
+  };
+
+  const handleRunBackupNow = async () => {
+    if (!window.electronAPI) return;
+    setTempStatus('idle', 'Running backup…');
+    const r = await window.electronAPI.runBackupNow?.();
+    if (r?.success) {
+      setTempStatus('success', 'Backup & CSV updated');
+      window.electronAPI.getBackupSchedule?.().then(rs => { if (rs?.success) setBackupScheduleInfo(rs); });
+    } else {
+      setTempStatus('error', r?.error || 'Backup failed');
     }
   };
 
   const dismissUpdatePrompt = useCallback(() => {
     const skipVersion = updateInfo?.latestVersion || updateInfo?.tag || '';
-    if (skipVersion) {
-      localStorage.setItem(UPDATE_SKIP_KEY, skipVersion);
-    }
+    if (skipVersion) localStorage.setItem(UPDATE_SKIP_KEY, skipVersion);
     setShowUpdatePrompt(false);
     setUpdateStatus('Update skipped for now');
   }, [updateInfo]);
 
   const checkForUpdates = useCallback(async () => {
     const repo = UPDATE_REPO.trim();
-    if (!repo) {
-      setUpdateStatus('Update source is not configured');
-      return;
-    }
-
-    if (!isOnline) {
-      setUpdateStatus('You are offline. Update check skipped.');
-      return;
-    }
-
+    if (!repo) { setUpdateStatus('Update source is not configured'); return; }
+    if (!isOnline) { setUpdateStatus('You are offline. Update check skipped.'); return; }
     setUpdateBusy(true);
-    setUpdateStatus('Checking GitHub releases...');
+    setUpdateStatus('Checking GitHub releases…');
     setUpdateInfo(null);
     setShowUpdatePrompt(false);
-
     try {
-      const response = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
-        headers: { Accept: 'application/vnd.github+json' },
-      });
-
-      if (!response.ok) {
-        throw new Error(`GitHub returned ${response.status}`);
-      }
-
+      const response = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } });
+      if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
       const release = await response.json();
-      const asset = (release.assets || []).find((item) => /\.(exe|AppImage)$/i.test(item.name) && !/blockmap/i.test(item.name))
-        || (release.assets || []).find((item) => !/blockmap/i.test(item.name));
+      const asset = (release.assets || []).find(item => /\.(exe|AppImage)$/i.test(item.name) && !/blockmap/i.test(item.name))
+        || (release.assets || []).find(item => !/blockmap/i.test(item.name));
       const currentVersion = String(appVersion || '').replace(/^v/i, '');
-      const latestVersion = String(release.tag_name || '').replace(/^v/i, '');
+      const latestVersion  = String(release.tag_name || '').replace(/^v/i, '');
       const isUpToDate = currentVersion && latestVersion && currentVersion === latestVersion;
-
-      const info = {
-        tag: release.tag_name || '',
-        name: release.name || release.tag_name || 'Latest release',
-        body: release.body || '',
-        assetName: asset?.name || '',
-        assetUrl: asset?.browser_download_url || '',
-        currentVersion,
-        latestVersion,
-        publishedAt: release.published_at || '',
-        updateAvailable: !isUpToDate,
-      };
-
+      const info = { tag: release.tag_name || '', name: release.name || release.tag_name || 'Latest release', body: release.body || '', assetName: asset?.name || '', assetUrl: asset?.browser_download_url || '', currentVersion, latestVersion, publishedAt: release.published_at || '', updateAvailable: !isUpToDate };
       const skippedVersion = localStorage.getItem(UPDATE_SKIP_KEY) || '';
       const releaseKey = info.latestVersion || info.tag || '';
-      const shouldShowPrompt = info.updateAvailable !== false && Boolean(info.assetUrl) && skippedVersion !== releaseKey;
-
       setUpdateInfo(info);
-      setShowUpdatePrompt(shouldShowPrompt);
-      setUpdateStatus(isUpToDate
-        ? 'You are already on the latest version'
-        : `Update available: ${info.latestVersion || info.tag}`);
+      setShowUpdatePrompt(info.updateAvailable !== false && Boolean(info.assetUrl) && skippedVersion !== releaseKey);
+      setUpdateStatus(isUpToDate ? 'You are already on the latest version' : `Update available: ${info.latestVersion || info.tag}`);
     } catch (error) {
       setUpdateStatus(error.message || 'Unable to check updates');
     } finally {
@@ -464,38 +388,20 @@ export default function App() {
 
   useEffect(() => {
     if (!isOnline || !appVersion) return;
-    const timer = window.setTimeout(() => {
-      void checkForUpdates();
-    }, 0);
-
+    const timer = window.setTimeout(() => { void checkForUpdates(); }, 0);
     return () => window.clearTimeout(timer);
   }, [isOnline, appVersion, checkForUpdates]);
 
   const downloadAndInstallUpdate = async () => {
-    if (updateInfo && updateInfo.updateAvailable === false) {
-      setUpdateStatus(`You are already on the latest version${updateInfo.latestVersion ? ` (${updateInfo.latestVersion})` : ''}`);
-      return;
-    }
-
-    if (!window.electronAPI || !updateInfo?.assetUrl) {
-      setUpdateStatus('No downloadable update found');
-      return;
-    }
-
+    if (updateInfo && updateInfo.updateAvailable === false) { setUpdateStatus(`Already on latest version`); return; }
+    if (!window.electronAPI || !updateInfo?.assetUrl) { setUpdateStatus('No downloadable update found'); return; }
     setUpdateBusy(true);
-    setUpdateStatus('Downloading update...');
-
+    setUpdateStatus('Downloading update…');
     try {
-      const result = await window.electronAPI.downloadAndInstallUpdate({
-        url: updateInfo.assetUrl,
-        filename: updateInfo.assetName,
-      });
-
+      const result = await window.electronAPI.downloadAndInstallUpdate({ url: updateInfo.assetUrl, filename: updateInfo.assetName });
       if (result.success) {
         setShowUpdatePrompt(false);
-        setUpdateStatus(result.launched
-          ? 'Installer launched. Follow the setup wizard.'
-          : `Downloaded to ${result.downloadedPath}`);
+        setUpdateStatus(result.launched ? 'Installer launched. Follow the setup wizard.' : `Downloaded to ${result.downloadedPath}`);
       } else {
         setUpdateStatus(result.error || 'Download failed');
       }
@@ -509,115 +415,69 @@ export default function App() {
     if (val.trim().length > 0) { void handleScannedBarcode(val, 'manual'); setManualInput(''); }
   };
 
+  // ── Derived data ─────────────────────────────────────────────────────────
   const searchTerm = searchQuery.trim().toLowerCase();
-  const inventoryPageSize = 50;
+  const inventoryPageSize  = 50;
   const inventoryRowHeight = 42;
-  const inventoryOverscan = 6;
+  const inventoryOverscan  = 6;
 
   const filteredRows = useMemo(() => {
     if (!searchTerm) return rows;
-    return rows.filter((row) =>
-      headers.some((header) => String(row[header] ?? '').toLowerCase().includes(searchTerm))
-    );
+    return rows.filter(row => headers.some(h => String(row[h] ?? '').toLowerCase().includes(searchTerm)));
   }, [headers, rows, searchTerm]);
 
-  const duplicateCount = useMemo(
-    () => scans.reduce((count, scan) => count + (scan.isDuplicate ? 1 : 0), 0),
-    [scans]
+  const duplicateCount = useMemo(() => scans.reduce((c, s) => c + (s.isDuplicate ? 1 : 0), 0), [scans]);
+  const totalQuantity  = useMemo(() => rows.reduce((sum, r) => sum + (Number(r[quantityColName]) || 0), 0), [rows]);
+
+  const displayHeaders = useMemo(
+    () => headers.filter(h => h !== 'Scan Mode' && h !== 'scan_mode'),
+    [headers]
   );
 
-  const totalQuantity = useMemo(
-    () => rows.reduce((sum, row) => sum + (Number(row[quantityColName]) || 0), 0),
-    [quantityColName, rows]
-  );
-
-  const orderedNames = useMemo(
-    () => columnsList.map((column) => column.name).filter((name) => name.trim()),
-    [columnsList]
-  );
-
-  const columnConfig = useMemo(() => ({
-    barcodeColumn: barcodeColName,
-    quantityColumn: quantityColName,
-    timestampColumn: timestampColName,
-    columnsOrder: orderedNames,
-    extraColumns: columnsList.filter((column) => !column.isDefault),
-  }), [barcodeColName, columnsList, orderedNames, quantityColName, timestampColName]);
-
-  const displayHeaders = useMemo(() => {
-    const allHeaders = new Set(orderedNames);
-    headers.forEach((header) => allHeaders.add(header));
-    return Array.from(allHeaders).filter((header) => header !== 'Scan Mode' && header !== 'scan_mode');
-  }, [headers, orderedNames]);
-
-  const totalInventoryPages = Math.max(1, Math.ceil(filteredRows.length / inventoryPageSize));
+  const totalInventoryPages  = Math.max(1, Math.ceil(filteredRows.length / inventoryPageSize));
   const currentInventoryPage = Math.min(inventoryPage, totalInventoryPages);
-  const inventoryPageStart = (currentInventoryPage - 1) * inventoryPageSize;
-  const inventoryPageRows = useMemo(
-    () => filteredRows.slice(inventoryPageStart, inventoryPageStart + inventoryPageSize),
-    [filteredRows, inventoryPageStart]
-  );
+  const inventoryPageStart   = (currentInventoryPage - 1) * inventoryPageSize;
+  const inventoryPageRows    = useMemo(() => filteredRows.slice(inventoryPageStart, inventoryPageStart + inventoryPageSize), [filteredRows, inventoryPageStart]);
 
   const inventoryVisibleStart = Math.max(0, Math.floor(inventoryScrollTop / inventoryRowHeight) - inventoryOverscan);
-  const inventoryVisibleCount = Math.max(
-    1,
-    Math.ceil((inventoryViewportHeight || inventoryRowHeight) / inventoryRowHeight) + inventoryOverscan * 2
-  );
-  const inventoryVisibleRows = useMemo(
-    () => inventoryPageRows.slice(inventoryVisibleStart, inventoryVisibleStart + inventoryVisibleCount),
-    [inventoryPageRows, inventoryVisibleCount, inventoryVisibleStart]
-  );
-  const inventoryVisibleEnd = inventoryVisibleStart + inventoryVisibleRows.length;
-  const inventoryTopSpacer = inventoryVisibleStart * inventoryRowHeight;
+  const inventoryVisibleCount = Math.max(1, Math.ceil((inventoryViewportHeight || inventoryRowHeight) / inventoryRowHeight) + inventoryOverscan * 2);
+  const inventoryVisibleRows  = useMemo(() => inventoryPageRows.slice(inventoryVisibleStart, inventoryVisibleStart + inventoryVisibleCount), [inventoryPageRows, inventoryVisibleCount, inventoryVisibleStart]);
+  const inventoryVisibleEnd   = inventoryVisibleStart + inventoryVisibleRows.length;
+  const inventoryTopSpacer    = inventoryVisibleStart * inventoryRowHeight;
   const inventoryBottomSpacer = Math.max(0, (inventoryPageRows.length - inventoryVisibleEnd) * inventoryRowHeight);
 
   useEffect(() => {
-    const updateViewportHeight = () => {
-      setInventoryViewportHeight(tableWrapRef.current?.clientHeight || 0);
-    };
-
-    updateViewportHeight();
-
+    const update = () => setInventoryViewportHeight(tableWrapRef.current?.clientHeight || 0);
+    update();
     if (typeof ResizeObserver !== 'undefined' && tableWrapRef.current) {
-      const observer = new ResizeObserver(updateViewportHeight);
-      observer.observe(tableWrapRef.current);
-      return () => observer.disconnect();
+      const obs = new ResizeObserver(update);
+      obs.observe(tableWrapRef.current);
+      return () => obs.disconnect();
     }
-
-    window.addEventListener('resize', updateViewportHeight);
-    return () => window.removeEventListener('resize', updateViewportHeight);
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
   }, []);
 
   useEffect(() => {
-    if (tableWrapRef.current) {
-      tableWrapRef.current.scrollTop = 0;
-    }
+    if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0;
   }, [currentInventoryPage]);
 
   useEffect(() => {
     if (activeTab !== 'data') return;
     const latestBarcode = scans[0]?.barcode;
     if (!latestBarcode || !tableBodyRef.current || filteredRows.length === 0) return;
-
-    const targetIndex = filteredRows.findIndex(
-      row => String(row[barcodeColName]) === String(latestBarcode)
-    );
+    const targetIndex = filteredRows.findIndex(row => String(row[barcodeColName]) === String(latestBarcode));
     if (targetIndex < 0) return;
-
     const targetVisibleIndex = targetIndex - inventoryPageStart - inventoryVisibleStart;
     if (targetVisibleIndex < 0 || targetVisibleIndex >= inventoryVisibleRows.length) {
-      if (tableWrapRef.current) {
-        tableWrapRef.current.scrollTop = Math.max(0, (targetIndex - inventoryPageStart) * inventoryRowHeight);
-      }
+      if (tableWrapRef.current) tableWrapRef.current.scrollTop = Math.max(0, (targetIndex - inventoryPageStart) * inventoryRowHeight);
       return;
     }
-
     const targetRow = tableBodyRef.current.children[targetVisibleIndex + 1];
-    if (targetRow && typeof targetRow.scrollIntoView === 'function') {
-      targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    if (targetRow && typeof targetRow.scrollIntoView === 'function') targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [activeTab, barcodeColName, filteredRows, inventoryPageStart, inventoryRowHeight, inventoryVisibleRows, inventoryVisibleStart, scans]);
 
+  // ── Status helpers ───────────────────────────────────────────────────────
   const statusColors = { success: 'var(--green)', duplicate: 'var(--amber)', error: 'var(--red)', idle: 'var(--muted)' };
   const statusLabels = { success: 'Updated', duplicate: 'Qty +1', error: 'Error', idle: 'Ready' };
   const backupStatusMeta = backupProgress?.status === 'error'
@@ -627,634 +487,380 @@ export default function App() {
       : { label: 'Running', color: 'var(--accent2)' };
   const backupProgressValue = typeof backupProgress?.progress === 'number'
     ? Math.max(0, Math.min(100, backupProgress.progress))
-    : backupProgress?.status === 'running'
-      ? 55
-      : backupProgress?.status === 'success'
-        ? 100
-        : 0;
+    : backupProgress?.status === 'running' ? 55 : backupProgress?.status === 'success' ? 100 : 0;
   const backupIsBusy = backupProgress?.status === 'running';
 
-  const applyReorderToExcel = async (newCols) => {
-    if (!window.electronAPI || !filePath) return;
-    const orderedNames = newCols.map(c => c.name).filter(n => n.trim());
-    
-    // Fill missing defaults in the current rows before rewriting
-    const updatedRows = rows.map(r => {
-        const newRow = { ...r };
-        newCols.filter(c => !c.isDefault).forEach(c => {
-            if (c.name && newRow[c.name] === undefined) {
-               newRow[c.name] = c.defaultValue || '';
-            }
-        });
-        return newRow;
-    });
-
-    const result = await window.electronAPI.rewriteExcel({
-      filePath, 
-      sheetName, 
-      rows: updatedRows,
-      columnsOrder: orderedNames
-    });
-
-    if (result.success) {
-      setRows(updatedRows);
-      // Let the sheet know about the structural change
-      window.electronAPI.readExcel(filePath, sheetName).then((res) => {
-         if (res.success) {
-            setHeaders(res.headers || []);
-         }
-      });
-      setTempStatus('success', 'Columns synchronized with Excel');
-    } else {
-      setTempStatus('error', result.error || 'Failed to sync columns');
-    }
-  };
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
       {showUpdatePrompt && updateInfo && (
         <div className="update-overlay" role="dialog" aria-modal="true" aria-labelledby="update-overlay-title">
           <div className="update-overlay-card">
             <div className="update-overlay-badge">Update available</div>
-            <h2 id="update-overlay-title" className="update-overlay-title">
-              {updateInfo.name || 'Latest release'}
-            </h2>
-            <p className="update-overlay-copy">
-              A newer version is ready while you are online. You can install it now or keep working and skip this release for the moment.
-            </p>
-
+            <h2 id="update-overlay-title" className="update-overlay-title">{updateInfo.name || 'Latest release'}</h2>
+            <p className="update-overlay-copy">A newer version is ready while you are online.</p>
             <div className="update-overlay-grid">
-              <div className="update-overlay-metric">
-                <span>Current</span>
-                <strong>{updateInfo.currentVersion || appVersion || 'Unknown'}</strong>
-              </div>
-              <div className="update-overlay-metric">
-                <span>Latest</span>
-                <strong>{updateInfo.latestVersion || updateInfo.tag || 'Unknown'}</strong>
-              </div>
-              <div className="update-overlay-metric">
-                <span>Status</span>
-                <strong>{isOnline ? 'Online' : 'Offline'}</strong>
-              </div>
-              <div className="update-overlay-metric">
-                <span>Published</span>
-                <strong>{updateInfo.publishedAt ? new Date(updateInfo.publishedAt).toLocaleDateString() : 'Unknown'}</strong>
-              </div>
+              <div className="update-overlay-metric"><span>Current</span><strong>{updateInfo.currentVersion || appVersion || 'Unknown'}</strong></div>
+              <div className="update-overlay-metric"><span>Latest</span><strong>{updateInfo.latestVersion || updateInfo.tag || 'Unknown'}</strong></div>
+              <div className="update-overlay-metric"><span>Status</span><strong>{isOnline ? 'Online' : 'Offline'}</strong></div>
+              <div className="update-overlay-metric"><span>Published</span><strong>{updateInfo.publishedAt ? new Date(updateInfo.publishedAt).toLocaleDateString() : 'Unknown'}</strong></div>
             </div>
-
-            {updateInfo.body && (
-              <div className="update-overlay-notes">
-                {updateInfo.body}
-              </div>
-            )}
-
+            {updateInfo.body && <div className="update-overlay-notes">{updateInfo.body}</div>}
             <div className="update-overlay-actions">
-              <button className="btn-accent btn-lg" onClick={downloadAndInstallUpdate} disabled={updateBusy || !updateInfo?.assetUrl}>
-                <IconDownload /> Install Update
-              </button>
-              <button className="btn-ghost btn-lg" onClick={dismissUpdatePrompt} disabled={updateBusy}>
-                Skip for now
-              </button>
-              <button className="btn-ghost btn-lg" onClick={checkForUpdates} disabled={updateBusy}>
-                <IconRefresh /> Check again
-              </button>
+              <button className="btn-accent btn-lg" onClick={downloadAndInstallUpdate} disabled={updateBusy || !updateInfo?.assetUrl}><IconDownload /> Install Update</button>
+              <button className="btn-ghost btn-lg" onClick={dismissUpdatePrompt} disabled={updateBusy}>Skip for now</button>
+              <button className="btn-ghost btn-lg" onClick={checkForUpdates} disabled={updateBusy}><IconRefresh /> Check again</button>
             </div>
-
-            <div className="update-overlay-footer">
-              {updateStatus}
-            </div>
+            <div className="update-overlay-footer">{updateStatus}</div>
           </div>
         </div>
       )}
 
       <div className={`app-shell ${scanFlash ? `flash-${scanFlash}` : ''}`}>
-      {lastScanPopup && (
-        <div className="last-scan-popup" role="status" aria-live="polite">
-          <div className="last-scan-title">Last {lastScanPopup.source === 'manual' ? 'Entered' : 'Scanned'}</div>
-          <div className="last-scan-code">{lastScanPopup.barcode}</div>
-        </div>
-      )}
-      <ScanVaultTutorial />
-      {/* Top Bar */}
-      <header className="topbar">
-        <div className="topbar-brand">
-          <div className="brand-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <rect x="2" y="3" width="2.5" height="18" rx="0.5" fill="currentColor"/>
-              <rect x="5.5" y="3" width="1" height="18" rx="0.5" fill="currentColor"/>
-              <rect x="7.5" y="3" width="2" height="18" rx="0.5" fill="currentColor"/>
-              <rect x="10.5" y="3" width="1" height="18" rx="0.5" fill="currentColor"/>
-              <rect x="12.5" y="3" width="3" height="18" rx="0.5" fill="currentColor"/>
-              <rect x="16.5" y="3" width="1" height="18" rx="0.5" fill="currentColor"/>
-              <rect x="18.5" y="3" width="3" height="18" rx="0.5" fill="currentColor"/>
-            </svg>
+        {lastScanPopup && (
+          <div className="last-scan-popup" role="status" aria-live="polite">
+            <div className="last-scan-title">Last {lastScanPopup.source === 'manual' ? 'Entered' : 'Scanned'}</div>
+            <div className="last-scan-code">{lastScanPopup.barcode}</div>
           </div>
-          <span className="brand-name">ScanVault</span>
-          <span className="brand-tag">Offline</span>
-        </div>
+        )}
+        <ScanVaultTutorial />
 
-        <div className="topbar-center">
-          <div className="status-pill" style={{ '--s-color': statusColors[lastStatus] }}>
-            <span className="status-dot"></span>
-            <span className="status-label">{statusLabels[lastStatus]}</span>
-            <span className="status-sep">·</span>
-            <span className="status-msg">{statusMsg}</span>
-          </div>
-        </div>
-
-        <div className="topbar-actions">
-          <button className="btn-ghost" onClick={handleUndo} title="Undo last scan">
-            <IconUndo /> Undo
-          </button>
-          <button className="btn-ghost" onClick={handleRedo} title="Redo">
-            <IconRedo /> Redo
-          </button>
-          <div className="divider-v"></div>
-          <button className="btn-accent" onClick={handleExport}>
-            <IconDownload /> Export CSV
-          </button>
-        </div>
-      </header>
-
-      <div className="app-body">
-        {/* Sidebar */}
-        <aside className="sidebar">
-          <div className="sidebar-inner">
-            {/* File Picker */}
-            <section className="sidebar-section">
-              <span className="section-label">Source File</span>
-              <div className="file-card">
-                <div className="file-icon">
-                  <IconFile />
-                </div>
-                <div className="file-info">
-                  <div className="file-name">{filePath ? filePath.split(/[\\/]/).pop() : 'No file selected'}</div>
-                  {filePath && <div className="file-path">{filePath}</div>}
-                </div>
-                <button className="btn-browse" onClick={handleSelectFile}>Browse</button>
-              </div>
-            </section>
-
-            {activeTab === 'data' && (
-              <section className="sidebar-section inventory-mode-section">
-                <span className="section-label">Inventory Mode</span>
-                <div className="inventory-mode-card">
-                  <div className="mode-toggle-row">
-                    <button
-                      className={`mode-chip ${inventoryAddMode === 'inventory_only' ? 'active' : ''}`}
-                      onClick={() => setInventoryAddMode('inventory_only')}
-                      type="button"
-                    >
-                      <span className="mode-chip-title">Inventory only</span>
-                      <span className="mode-chip-sub">Scan updates stock</span>
-                    </button>
-                    <button
-                      className={`mode-chip ${inventoryAddMode === 'normal' ? 'active' : ''}`}
-                      onClick={() => setInventoryAddMode('normal')}
-                      type="button"
-                    >
-                      <span className="mode-chip-title">Normal</span>
-                      <span className="mode-chip-sub">Scan adds to billing</span>
-                    </button>
-                  </div>
-                  <div className="field-hint">
-                    Selected mode controls how the next scan behaves.
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* Sheet Selector */}
-            {availableSheets.length > 0 && (
-              <section className="sidebar-section">
-                <span className="section-label">Active Sheet</span>
-                <div className="sheet-row">
-                  {availableSheets.map(sn => (
-                    <button key={sn} className={`sheet-chip ${sheetName === sn ? 'active' : ''}`} onClick={() => setSheetName(sn)}>{sn}</button>
-                  ))}
-                  <button className="sheet-chip sheet-add" onClick={() => setShowNewSheetInput(v => !v)}>+</button>
-                </div>
-                {showNewSheetInput && (
-                  <input className="input-sm" placeholder="New sheet name + Enter" value={newSheetInput}
-                    autoFocus onChange={e => setNewSheetInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && newSheetInput.trim()) {
-                        const ns = newSheetInput.trim();
-                        if (!availableSheets.includes(ns)) setAvailableSheets(p => [...p, ns]);
-                        setSheetName(ns); setNewSheetInput(''); setShowNewSheetInput(false);
-                      }
-                    }}
-                  />
-                )}
-              </section>
-            )}
-
-            {/* Manual Entry */}
-            <section className="sidebar-section">
-              <span className="section-label">Manual Entry</span>
-              <div className="manual-row">
-                <input className="input-sm" placeholder="Type barcode, press Enter" value={manualInput}
-                  onChange={e => setManualInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleManualScan(); }} />
-                <button className="btn-go" onClick={handleManualScan}><IconEnter /></button>
-              </div>
-            </section>
-
-            {/* Stats */}
-            <section className="sidebar-section">
-              <span className="section-label">Session Stats</span>
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-value">{formatNumber(totalScansToday, { maximumFractionDigits: 0 })}</div>
-                  <div className="stat-label">Scans</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-value">{formatNumber(uniqueItems, { maximumFractionDigits: 0 })}</div>
-                  <div className="stat-label">Items</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-value">{formatNumber(duplicateCount, { maximumFractionDigits: 0 })}</div>
-                  <div className="stat-label">Updates</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-value">{formatNumber(totalQuantity, { maximumFractionDigits: 0 })}</div>
-                  <div className="stat-label">Total Qty</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-value">{formatNumber(productsCount, { maximumFractionDigits: 0 })}</div>
-                  <div className="stat-label">Products</div>
-                </div>
-              </div>
-            </section>
-
-            {/* Scan Feed */}
-            <section className="sidebar-section sidebar-feed">
-              <span className="section-label">Scan History</span>
-              <div className="scan-feed">
-                {scans.length === 0 ? (
-                  <div className="feed-empty">
-                    <div className="feed-empty-icon"><IconBarcode /></div>
-                    <div>Scans appear here</div>
-                  </div>
-                ) : scans.map((s, i) => (
-                  <div key={i} className={`scan-item ${s.isDuplicate ? 'dup' : 'new'} ${i === 0 ? 'latest' : ''}`}>
-                    <span className={`scan-badge ${s.isDuplicate ? 'badge-dup' : 'badge-new'}`}>{s.isDuplicate ? '+1' : 'NEW'}</span>
-                    <div className="scan-detail">
-                      <div className="scan-code">{s.barcode}</div>
-                      <div className="scan-ts">{s.time}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-        </aside>
-
-        {/* Main Panel */}
-        <main className="main-panel">
-          <div className="tab-bar">
-            <div className="tabs">
-              <button className={`tab ${activeTab === 'data' ? 'tab-on' : ''}`} onClick={() => setActiveTab('data')}>
-                <IconTable /> Inventory
-              </button>
-              <button className={`tab ${activeTab === 'barcode' ? 'tab-on' : ''}`} onClick={() => setActiveTab('barcode')}>
-                <IconBarcode /> Barcode Creator
-              </button>
-              <button className={`tab ${activeTab === 'billing' ? 'tab-on' : ''}`} onClick={() => setActiveTab('billing')}>
-  <IconPrinter /> Billing
-</button>
-              <button className={`tab ${activeTab === 'settings' ? 'tab-on' : ''}`} onClick={() => setActiveTab('settings')}>
-                <IconSettings /> Settings
-              </button>
+        {/* Top Bar */}
+        <header className="topbar">
+          <div className="topbar-brand">
+            <div className="brand-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <rect x="2" y="3" width="2.5" height="18" rx="0.5" fill="currentColor"/>
+                <rect x="5.5" y="3" width="1" height="18" rx="0.5" fill="currentColor"/>
+                <rect x="7.5" y="3" width="2" height="18" rx="0.5" fill="currentColor"/>
+                <rect x="10.5" y="3" width="1" height="18" rx="0.5" fill="currentColor"/>
+                <rect x="12.5" y="3" width="3" height="18" rx="0.5" fill="currentColor"/>
+                <rect x="16.5" y="3" width="1" height="18" rx="0.5" fill="currentColor"/>
+                <rect x="18.5" y="3" width="3" height="18" rx="0.5" fill="currentColor"/>
+              </svg>
             </div>
-            {activeTab === 'data' && rows.length > 0 && (
-              <div className="tab-right">
-                <div className="search-box">
-                  <IconSearch />
-                  <input className="search-input" placeholder="Filter rows…" value={searchQuery}
-                    onChange={e => {
-                      setSearchQuery(e.target.value);
-                      setInventoryPage(1);
-                      setInventoryScrollTop(0);
-                    }} />
-                  {searchQuery && <button className="search-clear" onClick={() => {
-                    setSearchQuery('');
-                    setInventoryPage(1);
-                    setInventoryScrollTop(0);
-                  }}>×</button>}
-                </div>
-                <span className="row-count">{filteredRows.length} of {rows.length}</span>
-              </div>
-            )}
+            <span className="brand-name">ScanVault</span>
+            <span className="brand-tag">Offline</span>
           </div>
 
-{activeTab === 'billing' ? (
-  <BillingModule 
-    filePath={filePath}
-    sheetName={sheetName}
-    columnConfig={columnConfig}
-  />
-) : activeTab === 'barcode' ? (
-          <BarcodeGenerator filePath={filePath} sheetName={sheetName} columnConfig={columnConfig} />
-) : activeTab === 'data' ? (
-  <div className="table-wrap" ref={tableWrapRef} onScroll={(e) => setInventoryScrollTop(e.currentTarget.scrollTop)}>
-    {rows.length > 0 && filteredRows.length > 0 && (
-      <div className="pagination-bar">
-        <div className="pagination-meta">
-          Showing {inventoryPageStart + 1}-{Math.min(inventoryPageStart + inventoryPageSize, filteredRows.length)} of {filteredRows.length}
-        </div>
-        <div className="pagination-controls">
-          <button className="btn-ghost btn-sm" onClick={() => {
-            setInventoryPage(1);
-            setInventoryScrollTop(0);
-          }} disabled={currentInventoryPage === 1}>
-            First
-          </button>
-          <button className="btn-ghost btn-sm" onClick={() => {
-            setInventoryPage((p) => Math.max(1, p - 1));
-            setInventoryScrollTop(0);
-          }} disabled={currentInventoryPage === 1}>
-            Prev
-          </button>
-          <span className="pagination-page">Page {currentInventoryPage} / {totalInventoryPages}</span>
-          <button className="btn-ghost btn-sm" onClick={() => {
-            setInventoryPage((p) => Math.min(totalInventoryPages, p + 1));
-            setInventoryScrollTop(0);
-          }} disabled={currentInventoryPage >= totalInventoryPages}>
-            Next
-          </button>
-          <button className="btn-ghost btn-sm" onClick={() => {
-            setInventoryPage(totalInventoryPages);
-            setInventoryScrollTop(0);
-          }} disabled={currentInventoryPage >= totalInventoryPages}>
-            Last
-          </button>
-        </div>
-      </div>
-    )}
+          <div className="topbar-center">
+            <div className="status-pill" style={{ '--s-color': statusColors[lastStatus] }}>
+              <span className="status-dot"></span>
+              <span className="status-label">{statusLabels[lastStatus]}</span>
+              <span className="status-sep">·</span>
+              <span className="status-msg">{statusMsg}</span>
+            </div>
+          </div>
 
-    {searchQuery && filteredRows.length === 0 ? (
-                <div className="empty-state">
-                  <h2 className="empty-h">No results found</h2>
-                  <p className="empty-p">No records match "{searchQuery}"</p>
-                </div>
-              ) : rows.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-art">
-                    {[3,7,11,13,17,19,22,26,29,31,35,38,41].map((x, i) => (
-                      <div key={i} className="empty-bar" style={{ left: x, height: 40 + (i % 4) * 12, opacity: 0.12 + (i % 3) * 0.1 }}></div>
-                    ))}
+          <div className="topbar-actions">
+            <button className="btn-accent" onClick={handleExport} title="Export full database to CSV (read-only)">
+              <IconDownload /> Export CSV
+            </button>
+          </div>
+        </header>
+
+        <div className="app-body">
+          {/* Sidebar */}
+          <aside className="sidebar">
+            <div className="sidebar-inner">
+
+              {activeTab === 'data' && (
+                <section className="sidebar-section inventory-mode-section">
+                  <span className="section-label">Inventory Mode</span>
+                  <div className="inventory-mode-card">
+                    <div className="mode-toggle-row">
+                      <button className={`mode-chip ${inventoryAddMode === 'inventory_only' ? 'active' : ''}`} onClick={() => setInventoryAddMode('inventory_only')} type="button">
+                        <span className="mode-chip-title">Inventory only</span>
+                        <span className="mode-chip-sub">Scan updates stock</span>
+                      </button>
+                      <button className={`mode-chip ${inventoryAddMode === 'normal' ? 'active' : ''}`} onClick={() => setInventoryAddMode('normal')} type="button">
+                        <span className="mode-chip-title">Normal</span>
+                        <span className="mode-chip-sub">Scan adds to billing</span>
+                      </button>
+                    </div>
+                    <div className="field-hint">Selected mode controls how the next scan behaves.</div>
                   </div>
-                  <h2 className="empty-h">No inventory yet</h2>
-                  <p className="empty-p">
-                    {filePath ? 'Aim the scanner and fire — data appears instantly.' : 'Select your Excel file, then start scanning.'}
-                  </p>
-                  {!filePath && (
-                    <button className="btn-accent btn-lg" onClick={handleSelectFile}>
-                      <IconFile /> Select Excel File
-                    </button>
-                  )}
+                </section>
+              )}
+
+              {/* Manual Entry */}
+              <section className="sidebar-section">
+                <span className="section-label">Manual Entry</span>
+                <div className="manual-row">
+                  <input className="input-sm" placeholder="Type barcode, press Enter" value={manualInput}
+                    onChange={e => setManualInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleManualScan(); }} />
+                  <button className="btn-go" onClick={handleManualScan}><IconEnter /></button>
                 </div>
-              ) : (
-                  <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th className="th-num">#</th>
-                      {displayHeaders.map(h => <th key={h}>{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody ref={tableBodyRef}>
-                    {inventoryTopSpacer > 0 && (
-                      <tr aria-hidden="true" className="virtual-spacer-row">
-                        <td colSpan={displayHeaders.length + 1} style={{ height: `${inventoryTopSpacer}px`, padding: 0, border: 'none' }} />
-                      </tr>
-                    )}
-                    {inventoryVisibleRows.map((row, i) => {
-                      const isLatest = scans[0]?.barcode === String(row[barcodeColName]);
-                      return (
-                        <tr key={i} className={isLatest ? 'row-fresh' : ''}>
-                          <td className="td-num">{inventoryPageStart + inventoryVisibleStart + i + 1}</td>
-                          {displayHeaders.map(h => (
-                            <td key={h} className={
-                              h === barcodeColName ? 'td-code' :
-                              h === quantityColName ? 'td-qty' : ''
-                            }>
-                              {h === quantityColName ? (
-                                <span className="qty-badge">{String(row[h] ?? '')}</span>
-                              ) : h === 'Price' ? (
-                                `Rs. ${formatCurrency(row[h] || 0)}`
-                              ) : (
-                                String(row[h] ?? '')
-                              )}
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                    {inventoryBottomSpacer > 0 && (
-                      <tr aria-hidden="true" className="virtual-spacer-row">
-                        <td colSpan={displayHeaders.length + 1} style={{ height: `${inventoryBottomSpacer}px`, padding: 0, border: 'none' }} />
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+              </section>
+
+              {/* Stats */}
+              <section className="sidebar-section">
+                <span className="section-label">Session Stats</span>
+                <div className="stats-grid">
+                  <div className="stat-card">
+                    <div className="stat-value">{formatNumber(totalScansToday, { maximumFractionDigits: 0 })}</div>
+                    <div className="stat-label">Scans</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-value">{formatNumber(uniqueItems, { maximumFractionDigits: 0 })}</div>
+                    <div className="stat-label">Items</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-value">{formatNumber(duplicateCount, { maximumFractionDigits: 0 })}</div>
+                    <div className="stat-label">Updates</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-value">{formatNumber(totalQuantity, { maximumFractionDigits: 0 })}</div>
+                    <div className="stat-label">Total Qty</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-value">{formatNumber(productsCount, { maximumFractionDigits: 0 })}</div>
+                    <div className="stat-label">Products</div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Scan Feed */}
+              <section className="sidebar-section sidebar-feed">
+                <span className="section-label">Scan History</span>
+                <div className="scan-feed">
+                  {scans.length === 0 ? (
+                    <div className="feed-empty">
+                      <div className="feed-empty-icon"><IconBarcode /></div>
+                      <div>Scans appear here</div>
+                    </div>
+                  ) : scans.map((s, i) => (
+                    <div key={i} className={`scan-item ${s.isDuplicate ? 'dup' : 'new'} ${i === 0 ? 'latest' : ''}`}>
+                      <span className={`scan-badge ${s.isDuplicate ? 'badge-dup' : 'badge-new'}`}>{s.isDuplicate ? '+1' : 'NEW'}</span>
+                      <div className="scan-detail">
+                        <div className="scan-code">{s.barcode}</div>
+                        <div className="scan-ts">{s.time}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </aside>
+
+          {/* Main Panel */}
+          <main className="main-panel">
+            <div className="tab-bar">
+              <div className="tabs">
+                <button className={`tab ${activeTab === 'data' ? 'tab-on' : ''}`} onClick={() => setActiveTab('data')}><IconTable /> Inventory</button>
+                <button className={`tab ${activeTab === 'barcode' ? 'tab-on' : ''}`} onClick={() => setActiveTab('barcode')}><IconBarcode /> Barcode Creator</button>
+                <button className={`tab ${activeTab === 'billing' ? 'tab-on' : ''}`} onClick={() => setActiveTab('billing')}><IconPrinter /> Billing</button>
+                <button className={`tab ${activeTab === 'settings' ? 'tab-on' : ''}`} onClick={() => setActiveTab('settings')}><IconSettings /> Settings</button>
+              </div>
+              {activeTab === 'data' && rows.length > 0 && (
+                <div className="tab-right">
+                  <div className="search-box">
+                    <IconSearch />
+                    <input className="search-input" placeholder="Filter rows…" value={searchQuery}
+                      onChange={e => { setSearchQuery(e.target.value); setInventoryPage(1); setInventoryScrollTop(0); }} />
+                    {searchQuery && <button className="search-clear" onClick={() => { setSearchQuery(''); setInventoryPage(1); setInventoryScrollTop(0); }}>×</button>}
+                  </div>
+                  <span className="row-count">{filteredRows.length} of {rows.length}</span>
+                </div>
               )}
             </div>
-          ) : (
-            <div className="settings-panel">
-              <div className="settings-block">
-                <h3 className="settings-h">Columns Configuration</h3>
-                <p className="settings-p">Rearrange the order of any column. Default 3 columns cannot be renamed or deleted.</p>
-                
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                  <button className="btn-ghost" onClick={() => setColumnsList([...columnsList, { id: Date.now(), name: '', isDefault: false, defaultValue: '' }])}>
-                    + Add Extra Column
-                  </button>
-                </div>
 
-                {columnsList.map((col, idx) => (
-                  <div key={col.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-                    <button 
-                      className="btn-ghost" 
-                      style={{ padding: '4px', cursor: idx === 0 ? 'not-allowed' : 'pointer', opacity: idx === 0 ? 0.3 : 1 }} 
-                      disabled={idx === 0}
-                      onClick={() => {
-                        const newCols = [...columnsList];
-                        const t = newCols[idx - 1];
-                        newCols[idx - 1] = newCols[idx];
-                        newCols[idx] = t;
-                        setColumnsList(newCols);
-                        if (filePath) applyReorderToExcel(newCols);
-                      }}
-                    >↑</button>
-                    <button 
-                      className="btn-ghost" 
-                      style={{ padding: '4px', cursor: idx === columnsList.length - 1 ? 'not-allowed' : 'pointer', opacity: idx === columnsList.length - 1 ? 0.3 : 1 }} 
-                      disabled={idx === columnsList.length - 1}
-                      onClick={() => {
-                        const newCols = [...columnsList];
-                        const t = newCols[idx + 1];
-                        newCols[idx + 1] = newCols[idx];
-                        newCols[idx] = t;
-                        setColumnsList(newCols);
-                        if (filePath) applyReorderToExcel(newCols);
-                      }}
-                    >↓</button>
-
-                    <input 
-                      placeholder="Column Name" 
-                      className="field-input" 
-                      value={col.name} 
-                      disabled={col.isDefault}
-                      onChange={e => {
-                        if (col.isDefault) return;
-                        const newCols = [...columnsList];
-                        newCols[idx].name = e.target.value;
-                        setColumnsList(newCols);
-                      }} 
-                      onBlur={() => {
-                        if (!col.isDefault && filePath) applyReorderToExcel(columnsList);
-                      }}
-                      style={{ opacity: col.isDefault ? 0.7 : 1, width: '200px' }}
-                    />
-                    
-                    {!col.isDefault ? (
-                      <input 
-                        placeholder="Default Value" 
-                        className="field-input" 
-                        value={col.defaultValue} 
-                        onChange={e => {
-                          const newCols = [...columnsList];
-                          newCols[idx].defaultValue = e.target.value;
-                          setColumnsList(newCols);
-                        }} 
-                        onBlur={() => {
-                           if (filePath) applyReorderToExcel(columnsList);
-                        }}
-                        style={{ width: '200px' }}
-                      />
-                    ) : (
-                      <div className="field-input" style={{ width: '200px', opacity: 0.5, display: 'flex', alignItems: 'center', background: 'transparent', border: 'none', paddingLeft: 0 }}>
-                        (Core Data)
-                      </div>
-                    )}
-
-                    <button 
-                      className="btn-ghost" 
-                      style={{ padding: '0 8px', color: col.isDefault ? 'transparent' : 'var(--red)', pointerEvents: col.isDefault ? 'none' : 'auto' }} 
-                      onClick={() => {
-                        if (col.isDefault) return;
-                        const newCols = columnsList.filter((_, i) => i !== idx);
-                        setColumnsList(newCols);
-                        if (filePath) applyReorderToExcel(newCols);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="settings-block">
-                <h3 className="settings-h">How It Works</h3>
-                <div className="info-grid">
-                  <InfoCard icon="⌨" title="HID Keyboard Mode" body="USB or Bluetooth scanners type the barcode then press Enter. No drivers needed." />
-                  <InfoCard icon="⚡" title="100ms Buffer" body="Characters arriving within 100ms are treated as a scan. Slower keyboard input is ignored." />
-                  <InfoCard icon="📄" title="Local Excel Only" body="Reads and writes .xlsx files directly on disk. No internet, no sync, no cloud." />
-                  <InfoCard icon="↩" title="Undo / Redo" body="Up to 10 steps of scan history. Reverse any mistake without reopening Excel." />
-                </div>
-              </div>
-
-              <div className="settings-block">
-                <h3 className="settings-h">Backup & Restore</h3>
-                <p className="settings-p">
-                  Back up the current Excel workbook together with product, invoice, custom field, and shop settings data into one .xlsx file.
-                </p>
-
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button className="btn-accent" onClick={handleCreateBackup} disabled={!filePath || backupIsBusy}>
-                    {backupIsBusy && backupProgress?.operation === 'backup:createFull' ? 'Backing Up...' : 'Backup All Data'}
-                  </button>
-                  <button className="btn-ghost" onClick={handleRestoreBackup} disabled={backupIsBusy}>
-                    {backupIsBusy && backupProgress?.operation === 'backup:restoreFull' ? 'Restoring...' : 'Restore From Backup'}
-                  </button>
-                </div>
-
-                <div className={`backup-progress-card ${backupProgress?.status || 'idle'}`} aria-live="polite" aria-busy={backupIsBusy}>
-                  <div className="backup-progress-header">
-                    <div>
-                      <div className="backup-progress-title">
-                        {backupProgress?.operation === 'backup:restoreFull' ? 'Restore progress' : backupProgress?.operation === 'backup:createFull' ? 'Backup progress' : 'Backup progress'}
-                      </div>
-                      <div className="backup-progress-subtitle">
-                        {backupProgress?.phase || 'Waiting for backup or restore to start'}
-                      </div>
-                    </div>
-                    <div className="backup-progress-badge" style={{ '--bp-color': backupStatusMeta.color }}>
-                      {backupStatusMeta.label}
-                    </div>
-                  </div>
-
-                  <div className="backup-progress-bar">
-                    <div className="backup-progress-fill" style={{ width: `${backupProgressValue}%`, '--bp-color': backupStatusMeta.color }} />
-                  </div>
-
-                  <div className="backup-progress-footer">
-                    <span>{backupProgressValue}%</span>
-                    <span>{backupProgress?.details || (backupProgress?.status === 'success' ? 'Operation completed successfully' : backupProgress?.status === 'error' ? 'Operation failed' : 'Idle')}</span>
-                  </div>
-                </div>
-
-                <div className="field-hint" style={{ marginTop: '10px' }}>
-                  Restore writes the workbook data back into the selected Excel file and merges the database data into SQLite.
-                </div>
-              </div>
-
-              <div className="settings-block">
-                <h3 className="settings-h">Update Center</h3>
-                <div className="update-current-version">Current Version: {appVersion || 'Unknown'}</div>
-
-                <div className="update-actions">
-                  <button className="btn-ghost" onClick={checkForUpdates} disabled={updateBusy}>
-                    <IconRefresh /> Check for Update
-                  </button>
-                  <button
-                    className="btn-accent"
-                    onClick={downloadAndInstallUpdate}
-                    disabled={updateBusy || !updateInfo?.assetUrl || updateInfo?.updateAvailable === false}
-                  >
-                    <IconDownload /> Download & Install
-                  </button>
-                </div>
-
-                {updateInfo && (
-                  <div className="update-card">
-                    <div className="update-card-title">{updateInfo.name || 'Latest release'}</div>
-                    <div className="update-card-subtitle">
-                      {updateInfo.publishedAt ? `Published ${new Date(updateInfo.publishedAt).toLocaleString()}` : 'Release details'}
-                    </div>
-                    <div className="update-card-line">
-                      <span>Current</span>
-                      <span>{updateInfo.currentVersion || appVersion || 'Unknown'}</span>
-                    </div>
-                    <div className="update-card-line">
-                      <span>Latest</span>
-                      <span>{updateInfo.latestVersion || updateInfo.tag || 'Unknown'}</span>
-                    </div>
-                    <div className="update-card-line">
-                      <span>Status</span>
-                      <span>{updateInfo.updateAvailable === false ? 'Up to date' : 'Update ready'}</span>
+            {activeTab === 'billing' ? (
+              <BillingModule />
+            ) : activeTab === 'barcode' ? (
+              <BarcodeGenerator />
+            ) : activeTab === 'data' ? (
+              <div className="table-wrap" ref={tableWrapRef} onScroll={(e) => setInventoryScrollTop(e.currentTarget.scrollTop)}>
+                {rows.length > 0 && filteredRows.length > 0 && (
+                  <div className="pagination-bar">
+                    <div className="pagination-meta">Showing {inventoryPageStart + 1}–{Math.min(inventoryPageStart + inventoryPageSize, filteredRows.length)} of {filteredRows.length}</div>
+                    <div className="pagination-controls">
+                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(1); setInventoryScrollTop(0); }} disabled={currentInventoryPage === 1}>First</button>
+                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(p => Math.max(1, p - 1)); setInventoryScrollTop(0); }} disabled={currentInventoryPage === 1}>Prev</button>
+                      <span className="pagination-page">Page {currentInventoryPage} / {totalInventoryPages}</span>
+                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(p => Math.min(totalInventoryPages, p + 1)); setInventoryScrollTop(0); }} disabled={currentInventoryPage >= totalInventoryPages}>Next</button>
+                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(totalInventoryPages); setInventoryScrollTop(0); }} disabled={currentInventoryPage >= totalInventoryPages}>Last</button>
                     </div>
                   </div>
                 )}
 
-                <div className="update-status">{updateStatus}</div>
+                {searchQuery && filteredRows.length === 0 ? (
+                  <div className="empty-state"><h2 className="empty-h">No results</h2><p className="empty-p">No records match "{searchQuery}"</p></div>
+                ) : rows.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-art">
+                      {[3,7,11,13,17,19,22,26,29,31,35,38,41].map((x, i) => (
+                        <div key={i} className="empty-bar" style={{ left: x, height: 40 + (i % 4) * 12, opacity: 0.12 + (i % 3) * 0.1 }}></div>
+                      ))}
+                    </div>
+                    <h2 className="empty-h">No inventory yet</h2>
+                    <p className="empty-p">Aim the scanner and fire — data saves directly to the database.</p>
+                  </div>
+                ) : (
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th className="th-num">#</th>
+                        {displayHeaders.map(h => <th key={h}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody ref={tableBodyRef}>
+                      {inventoryTopSpacer > 0 && (
+                        <tr aria-hidden="true" className="virtual-spacer-row">
+                          <td colSpan={displayHeaders.length + 1} style={{ height: `${inventoryTopSpacer}px`, padding: 0, border: 'none' }} />
+                        </tr>
+                      )}
+                      {inventoryVisibleRows.map((row, i) => {
+                        const isLatest = scans[0]?.barcode === String(row[barcodeColName]);
+                        return (
+                          <tr key={i} className={isLatest ? 'row-fresh' : ''}>
+                            <td className="td-num">{inventoryPageStart + inventoryVisibleStart + i + 1}</td>
+                            {displayHeaders.map(h => (
+                              <td key={h} className={h === barcodeColName ? 'td-code' : h === quantityColName ? 'td-qty' : ''}>
+                                {h === quantityColName ? (
+                                  <span className="qty-badge">{String(row[h] ?? '')}</span>
+                                ) : h === 'Price' ? (
+                                  `Rs. ${formatCurrency(row[h] || 0)}`
+                                ) : (
+                                  String(row[h] ?? '')
+                                )}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                      {inventoryBottomSpacer > 0 && (
+                        <tr aria-hidden="true" className="virtual-spacer-row">
+                          <td colSpan={displayHeaders.length + 1} style={{ height: `${inventoryBottomSpacer}px`, padding: 0, border: 'none' }} />
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
               </div>
-            </div>
-          )}
-        </main>
+            ) : (
+              /* Settings Panel */
+              <div className="settings-panel">
+
+                <div className="settings-block">
+                  <h3 className="settings-h">CSV Export</h3>
+                  <p className="settings-p">
+                    Export all database data — products, invoices, invoice items, and custom fields — into a single read-only CSV file.
+                    Once a location is set, every export overwrites the same file.
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
+                    <button className="btn-accent" onClick={handleExport}>
+                      <IconDownload /> Export Now
+                    </button>
+                    <button className="btn-ghost" onClick={handleSetExportPath}>
+                      <IconFile /> Change Location
+                    </button>
+                  </div>
+                  {csvExportPath ? (
+                    <div className="field-hint" style={{ wordBreak: 'break-all' }}>
+                      📄 Export path: <strong>{csvExportPath}</strong>
+                      <br />The file is marked read-only after each export to prevent accidental edits.
+                    </div>
+                  ) : (
+                    <div className="field-hint">No export location set. Click "Export Now" to choose one.</div>
+                  )}
+                </div>
+
+                <div className="settings-block">
+                  <h3 className="settings-h">How It Works</h3>
+                  <div className="info-grid">
+                    <InfoCard icon="⌨" title="HID Keyboard Mode" body="USB or Bluetooth scanners type the barcode then press Enter. No drivers needed." />
+                    <InfoCard icon="⚡" title="100ms Buffer" body="Characters arriving within 100ms are treated as a scan. Slower keyboard input is ignored." />
+                    <InfoCard icon="🗄️" title="SQLite Database" body="All data is stored locally in a SQLite database. No Excel files. No data loss." />
+                    <InfoCard icon="📄" title="Read-Only CSV" body="Exported CSVs are marked read-only to protect data integrity. Re-export to refresh." />
+                  </div>
+                </div>
+
+                <div className="settings-block">
+                  <h3 className="settings-h">Backup & Restore</h3>
+                  <p className="settings-p">
+                    Backups capture all products, invoices, custom fields, and shop settings into a JSON file.
+                    A read-only CSV companion is also written alongside.
+                  </p>
+
+                  <div className="backup-schedule-card" style={{ marginBottom: '14px', padding: '10px 14px', background: 'var(--surface2)', borderRadius: '8px', fontSize: '13px' }}>
+                    <div style={{ fontWeight: 600, marginBottom: '4px' }}>⏰ Auto-Backup Schedule</div>
+                    <div style={{ color: 'var(--muted)' }}>
+                      Runs automatically every day at <strong>9:00 AM</strong>.
+                    </div>
+                    {backupScheduleInfo && (
+                      <div style={{ color: 'var(--muted)', marginTop: '4px' }}>
+                        Next run: <strong>{new Date(backupScheduleInfo.nextRunAt).toLocaleString()}</strong>
+                        <br />Backup folder: <span style={{ wordBreak: 'break-all' }}>{backupScheduleInfo.backupDir}</span>
+                      </div>
+                    )}
+                    {lastAutoBackup && (
+                      <div style={{ color: 'var(--green)', marginTop: '4px' }}>
+                        Last auto-backup: {new Date(lastAutoBackup.timestamp).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button className="btn-accent" onClick={handleCreateBackup} disabled={backupIsBusy}>
+                      {backupIsBusy && backupProgress?.operation === 'backup:create' ? 'Backing Up…' : 'Backup Now'}
+                    </button>
+                    <button className="btn-ghost" onClick={handleRestoreBackup} disabled={backupIsBusy}>
+                      {backupIsBusy && backupProgress?.operation === 'backup:restore' ? 'Restoring…' : 'Restore From Backup'}
+                    </button>
+                    <button className="btn-ghost" onClick={handleRunBackupNow} disabled={backupIsBusy} title="Run full backup + CSV update right now">
+                      ▶ Run Auto-Backup Now
+                    </button>
+                  </div>
+
+                  <div className={`backup-progress-card ${backupProgress?.status || 'idle'}`} aria-live="polite" aria-busy={backupIsBusy}>
+                    <div className="backup-progress-header">
+                      <div>
+                        <div className="backup-progress-title">
+                          {backupProgress?.operation === 'backup:restore' ? 'Restore progress' : 'Backup progress'}
+                        </div>
+                        <div className="backup-progress-subtitle">{backupProgress?.phase || 'Waiting for backup or restore to start'}</div>
+                      </div>
+                      <div className="backup-progress-badge" style={{ '--bp-color': backupStatusMeta.color }}>{backupStatusMeta.label}</div>
+                    </div>
+                    <div className="backup-progress-bar">
+                      <div className="backup-progress-fill" style={{ width: `${backupProgressValue}%`, '--bp-color': backupStatusMeta.color }} />
+                    </div>
+                    <div className="backup-progress-footer">
+                      <span>{backupProgressValue}%</span>
+                      <span>{backupProgress?.details || (backupProgress?.status === 'success' ? 'Operation completed successfully' : backupProgress?.status === 'error' ? 'Operation failed' : 'Idle')}</span>
+                    </div>
+                  </div>
+
+                  <div className="field-hint" style={{ marginTop: '10px' }}>
+                    The auto-backup also updates the configured CSV export path (if set) every morning at 9 AM.
+                  </div>
+                </div>
+
+                <div className="settings-block">
+                  <h3 className="settings-h">Update Center</h3>
+                  <div className="update-current-version">Current Version: {appVersion || 'Unknown'}</div>
+                  <div className="update-actions">
+                    <button className="btn-ghost" onClick={checkForUpdates} disabled={updateBusy}><IconRefresh /> Check for Update</button>
+                    <button className="btn-accent" onClick={downloadAndInstallUpdate} disabled={updateBusy || !updateInfo?.assetUrl || updateInfo?.updateAvailable === false}><IconDownload /> Download & Install</button>
+                  </div>
+                  {updateInfo && (
+                    <div className="update-card">
+                      <div className="update-card-title">{updateInfo.name || 'Latest release'}</div>
+                      <div className="update-card-subtitle">{updateInfo.publishedAt ? `Published ${new Date(updateInfo.publishedAt).toLocaleString()}` : 'Release details'}</div>
+                      <div className="update-card-line"><span>Current</span><span>{updateInfo.currentVersion || appVersion || 'Unknown'}</span></div>
+                      <div className="update-card-line"><span>Latest</span><span>{updateInfo.latestVersion || updateInfo.tag || 'Unknown'}</span></div>
+                      <div className="update-card-line"><span>Status</span><span>{updateInfo.updateAvailable === false ? 'Up to date' : 'Update ready'}</span></div>
+                    </div>
+                  )}
+                  <div className="update-status">{updateStatus}</div>
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
       </div>
-    </div>
     </>
   );
 }
@@ -1270,8 +876,6 @@ function InfoCard({ icon, title, body }) {
 }
 
 // Icons
-const IconUndo = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/></svg>;
-const IconRedo = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 019-9 9 9 0 016 2.3L21 13"/></svg>;
 const IconDownload = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
 const IconRefresh = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 106 6.51L1 11m23 9l-5-5"/></svg>;
 const IconFile = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
@@ -1280,4 +884,4 @@ const IconTable = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="no
 const IconSettings = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>;
 const IconSearch = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
 const IconBarcode = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="2" height="16" rx="0.5"/><rect x="5" y="4" width="1" height="16" rx="0.5"/><rect x="7" y="4" width="2" height="16" rx="0.5"/><rect x="11" y="4" width="1" height="16" rx="0.5"/><rect x="13" y="4" width="3" height="16" rx="0.5"/><rect x="17" y="4" width="1" height="16" rx="0.5"/><rect x="19" y="4" width="3" height="16" rx="0.5"/></svg>;
-const IconPrinter = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>;
+const IconPrinter = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>;
