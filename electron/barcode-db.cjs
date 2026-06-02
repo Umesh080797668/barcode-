@@ -27,6 +27,7 @@ function getLegacyDbPaths(app) {
       this.dbPath = getDbPath(app);
       this.db = null;
       this.isReady = false;
+      this.saveTimer = null;
       this.initPromise = this._init();
     }
 
@@ -34,7 +35,8 @@ function getLegacyDbPaths(app) {
       try {
         const SQL = await initSqlJs();
         const legacyPaths = getLegacyDbPaths(this.app).filter((candidate) => candidate !== this.dbPath);
-        if (!fs.existsSync(this.dbPath)) {
+        const hadDbFile = fs.existsSync(this.dbPath);
+        if (!hadDbFile) {
           const legacyPath = legacyPaths.find((candidate) => fs.existsSync(candidate));
           if (legacyPath) {
             fs.mkdirSync(path.dirname(this.dbPath), { recursive: true });
@@ -49,6 +51,9 @@ function getLegacyDbPaths(app) {
           this.db = new SQL.Database();
         }
 
+        this.db.run('PRAGMA foreign_keys = ON');
+
+        let schemaChanged = false;
         this.db.run(`
           CREATE TABLE IF NOT EXISTS products (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,7 +74,11 @@ function getLegacyDbPaths(app) {
         const hasScanMode = productColumns?.[0]?.values?.some((row) => row[1] === 'scan_mode');
         if (!hasScanMode) {
           this.db.run(`ALTER TABLE products ADD COLUMN scan_mode TEXT DEFAULT 'normal'`);
+          schemaChanged = true;
         }
+
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_products_scan_mode ON products(scan_mode)`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)`);
 
         this.db.run(`
           CREATE TABLE IF NOT EXISTS custom_fields (
@@ -80,8 +89,11 @@ function getLegacyDbPaths(app) {
             sort_order   INTEGER DEFAULT 0
           );
         `);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_custom_fields_sort_order ON custom_fields(sort_order)`);
       
-        this._saveDisk();
+        if (!hadDbFile || schemaChanged) {
+          this._saveDisk();
+        }
         this.isReady = true;
       } catch (err) {
         console.error('[BarcodeDB] sql.js init error:', err);
@@ -93,6 +105,23 @@ function getLegacyDbPaths(app) {
       const data = this.db.export();
       const buffer = Buffer.from(data);
       fs.writeFileSync(this.dbPath, buffer);
+    }
+
+    _scheduleSaveDisk() {
+      if (!this.db) return;
+      if (this.saveTimer) clearTimeout(this.saveTimer);
+      this.saveTimer = setTimeout(() => {
+        this.saveTimer = null;
+        this._saveDisk();
+      }, 250);
+    }
+
+    flushNow() {
+      if (this.saveTimer) {
+        clearTimeout(this.saveTimer);
+        this.saveTimer = null;
+      }
+      this._saveDisk();
     }
 
     async _ensureReady() {
@@ -111,26 +140,52 @@ function getLegacyDbPaths(app) {
       await this._ensureReady();
       if (!this.db) return [];
 
+      const conditions = [];
+      const params = [];
+      const search = String(opts?.search || '').trim().toLowerCase();
+
+      if (opts?.billingOnly) {
+        conditions.push("scan_mode <> 'inventory_only'");
+      }
+
+      if (search) {
+        conditions.push(`(
+          LOWER(COALESCE(barcode, '')) LIKE ? OR
+          LOWER(COALESCE(name, '')) LIKE ? OR
+          LOWER(COALESCE(sku, '')) LIKE ? OR
+          LOWER(COALESCE(category, '')) LIKE ? OR
+          LOWER(COALESCE(scan_mode, '')) LIKE ? OR
+          LOWER(COALESCE(custom_fields, '')) LIKE ? OR
+          CAST(price AS TEXT) LIKE ? OR
+          CAST(quantity AS TEXT) LIKE ?
+        )`);
+        const needle = `%${search}%`;
+        params.push(needle, needle, needle, needle, needle, needle, needle, needle);
+      }
+
       let query = 'SELECT * FROM products';
+      if (conditions.length > 0) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
+      }
+      query += ' ORDER BY id ASC';
+      if (Number.isFinite(opts?.limit)) {
+        query += ' LIMIT ?';
+        params.push(Number(opts.limit));
+      }
+      if (Number.isFinite(opts?.offset)) {
+        query += ' OFFSET ?';
+        params.push(Number(opts.offset));
+      }
+
       const stmt = this.db.prepare(query);
+      if (params.length > 0) stmt.bind(params);
       const results = [];
       while (stmt.step()) {
         results.push(stmt.getAsObject());
       }
       stmt.free();
 
-      const search = String(opts?.search || '').trim().toLowerCase();
-      const filtered = search
-        ? results.filter((row) => {
-            const text = [row.barcode, row.name, row.sku, row.category, row.scan_mode]
-              .filter(Boolean)
-              .join(' ')
-              .toLowerCase();
-            return text.includes(search);
-          })
-        : results;
-
-      return filtered.map(row => ({
+      return results.map(row => ({
         ...row,
         custom_fields: row.custom_fields ? JSON.parse(row.custom_fields) : {}
       }));
@@ -212,7 +267,7 @@ function getLegacyDbPaths(app) {
         stmt.free();
       }
 
-      this._saveDisk();
+      this._scheduleSaveDisk();
       return { success: true, barcode: product.barcode };
     }
 
@@ -271,7 +326,7 @@ function getLegacyDbPaths(app) {
         stmt.free();
       }
 
-      this._saveDisk();
+      this._scheduleSaveDisk();
       return { success: true, barcode: merged.barcode };
     }
 
@@ -283,7 +338,7 @@ function getLegacyDbPaths(app) {
       stmt.run([idOrBarcode, idOrBarcode]);
       stmt.free();
     
-      this._saveDisk();
+      this._scheduleSaveDisk();
       return { success: true };
     }
 
@@ -349,7 +404,7 @@ function getLegacyDbPaths(app) {
         i.free();
       }
     
-      this._saveDisk();
+      this._scheduleSaveDisk();
       return { success: true, id: field.id };
     }
 
@@ -359,7 +414,7 @@ function getLegacyDbPaths(app) {
       const stmt = this.db.prepare('DELETE FROM custom_fields WHERE id = ?');
       stmt.run([id]);
       stmt.free();
-      this._saveDisk();
+      this._scheduleSaveDisk();
       return { success: true };
     }
 
@@ -814,28 +869,39 @@ function getLegacyDbPaths(app) {
           FOREIGN KEY (invoice_id) REFERENCES invoices(id)
         );
       `);
+      this.db.run(`CREATE INDEX IF NOT EXISTS idx_invoices_created_at ON invoices(created_at)`);
+      this.db.run(`CREATE INDEX IF NOT EXISTS idx_invoices_transaction_type ON invoices(transaction_type)`);
+      this.db.run(`CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id)`);
+      this.db.run(`CREATE INDEX IF NOT EXISTS idx_invoice_items_barcode ON invoice_items(barcode)`);
 
+      let schemaChanged = false;
       const itemColumns = this.db.exec("PRAGMA table_info(invoice_items)");
       const hasWarranty = itemColumns.length > 0 && itemColumns[0].values.some(row => row[1] === 'warranty');
       if (!hasWarranty) {
         this.db.run("ALTER TABLE invoice_items ADD COLUMN warranty TEXT DEFAULT ''");
+        schemaChanged = true;
       }
       const hasRemaining = itemColumns.length > 0 && itemColumns[0].values.some(row => row[1] === 'remaining_warranty');
       if (!hasRemaining) {
         this.db.run("ALTER TABLE invoice_items ADD COLUMN remaining_warranty TEXT DEFAULT ''");
+        schemaChanged = true;
       }
 
       const invoiceColumns = this.db.exec("PRAGMA table_info(invoices)");
       const hasTransactionType = invoiceColumns.length > 0 && invoiceColumns[0].values.some(row => row[1] === 'transaction_type');
       if (!hasTransactionType) {
         this.db.run("ALTER TABLE invoices ADD COLUMN transaction_type TEXT DEFAULT 'sale'");
+        schemaChanged = true;
       }
       const hasReturnReason = invoiceColumns.length > 0 && invoiceColumns[0].values.some(row => row[1] === 'return_reason');
       if (!hasReturnReason) {
         this.db.run("ALTER TABLE invoices ADD COLUMN return_reason TEXT DEFAULT ''");
+        schemaChanged = true;
       }
 
-      this._saveDisk();
+      if (schemaChanged) {
+        this._saveDisk();
+      }
     }
 
 generateInvoiceNumber() {
@@ -863,26 +929,12 @@ async saveInvoice(invoice) {
     return_reason: invoice.return_reason || '',
   };
 
-  const existingInvoiceNos = new Set();
-  const invoiceRows = this.db.exec('SELECT invoice_no FROM invoices');
-  if (invoiceRows.length > 0) {
-    for (const row of invoiceRows[0].values || []) {
-      if (row[0]) existingInvoiceNos.add(String(row[0]));
-    }
-  }
-
   let invNo = String(invoice.invoice_no || '').trim();
-  if (!invNo || existingInvoiceNos.has(invNo)) {
-    invNo = '';
-  }
+  if (!invNo) invNo = '';
 
   let lastError = null;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const candidateNo = invNo || this.generateInvoiceNumber();
-    if (existingInvoiceNos.has(candidateNo)) {
-      invNo = '';
-      continue;
-    }
 
     try {
       this.db.run('BEGIN TRANSACTION');
@@ -952,7 +1004,6 @@ async saveInvoice(invoice) {
       if (!/UNIQUE constraint failed: invoices\.invoice_no/i.test(String(err?.message || err))) {
         throw err;
       }
-      existingInvoiceNos.add(candidateNo);
       invNo = '';
     }
   }

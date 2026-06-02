@@ -221,6 +221,7 @@ function createWindow() {
     height: 820,
     minWidth: 900,
     minHeight: 600,
+    show: false,
     title: 'ScanVault',
     backgroundColor: '#0d0e11',
     icon: appIconPath,
@@ -229,6 +230,15 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  mainWindow.once('ready-to-show', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.show();
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
   });
 
   if (app.isPackaged) {
@@ -242,6 +252,10 @@ app.whenReady().then(() => {
   barcodeDB = new BarcodeDB(app);
   createWindow();
   scheduleNextAutoBackup();
+});
+
+app.on('before-quit', () => {
+  barcodeDB?.flushNow?.();
 });
 
 app.on('window-all-closed', () => {

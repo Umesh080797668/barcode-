@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { lazy, Suspense, startTransition, useDeferredValue, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { formatCurrency, formatNumber } from './utils/format';
 import './App.css';
 import ScanVaultTutorial from './ScanVaultTutorial';
-import BarcodeGenerator from './BarcodeGenerator';
-import BillingModule from './BillingModule';
+
+const BarcodeGenerator = lazy(() => import('./BarcodeGenerator'));
+const BillingModule = lazy(() => import('./BillingModule'));
 
 export default function App() {
   const UPDATE_REPO = 'Umesh080797668/barcode-';
@@ -48,6 +49,69 @@ export default function App() {
   const popupTimer    = useRef(null);
   const tableBodyRef  = useRef(null);
   const tableWrapRef  = useRef(null);
+  const rowsRef       = useRef([]);
+
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  const toInventoryRow = useCallback((product) => {
+    const row = {
+      [barcodeColName]:  product?.barcode || '',
+      Name:              product?.name || '',
+      SKU:               product?.sku || '',
+      Price:             product?.price ?? 0,
+      [quantityColName]:  product?.quantity ?? 0,
+      Category:          product?.category || '',
+      [timestampColName]: product?.updated_at || product?.created_at || '',
+    };
+
+    for (const [key, value] of Object.entries(product?.custom_fields || {})) {
+      row[key] = value ?? '';
+    }
+
+    row.__searchText = Object.values(row)
+      .map(value => String(value ?? ''))
+      .join(' ')
+      .toLowerCase();
+
+    return row;
+  }, []);
+
+  const applyInventoryRow = useCallback((product, { createIfMissing = false } = {}) => {
+    const nextRow = toInventoryRow(product);
+    if (!nextRow[barcodeColName]) return;
+
+    startTransition(() => {
+      setRows(prev => {
+        const index = prev.findIndex(row => String(row[barcodeColName]) === String(nextRow[barcodeColName]));
+        if (index >= 0) {
+          const next = prev.slice();
+          next[index] = { ...next[index], ...nextRow };
+          return next;
+        }
+        if (createIfMissing || prev.length === 0) return [...prev, nextRow];
+        return prev;
+      });
+
+      if (createIfMissing) {
+        setUniqueItems(count => count + 1);
+        setProductsCount(count => count + 1);
+      }
+    });
+  }, [toInventoryRow]);
+
+  const setTempStatus = useCallback((type, msg) => {
+    setStatus(type);
+    setStatusMsg(msg);
+    setScanFlash(type);
+    clearTimeout(statusTimer.current);
+    statusTimer.current = setTimeout(() => {
+      setScanFlash(null);
+      setStatus('idle');
+      setStatusMsg('Ready to scan');
+    }, 2500);
+  }, []);
 
   // ── App version ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -93,7 +157,7 @@ export default function App() {
       setLastAutoBackup(payload);
       setTempStatus('success', 'Auto-backup completed (9 AM)');
     });
-  }, []);
+  }, [setTempStatus]);
 
   // ── Load CSV export path & schedule info on mount ────────────────────────
   useEffect(() => {
@@ -122,30 +186,39 @@ export default function App() {
         }
         const cfKeysArr = Array.from(cfKeys);
         const baseHeaders = [barcodeColName, 'Name', 'SKU', 'Price', quantityColName, 'Category', timestampColName, ...cfKeysArr];
-        const mappedRows = products.map(p => {
-          const row = {
-            [barcodeColName]:   p.barcode     || '',
-            'Name':             p.name        || '',
-            'SKU':              p.sku         || '',
-            'Price':            p.price       ?? 0,
-            [quantityColName]:  p.quantity    ?? 0,
-            'Category':         p.category    || '',
-            [timestampColName]: p.updated_at  || p.created_at || '',
-          };
-          cfKeysArr.forEach(k => { row[k] = p.custom_fields?.[k] ?? ''; });
-          return row;
+        const mappedRows = products.map(toInventoryRow);
+        startTransition(() => {
+          setHeaders(baseHeaders);
+          setRows(mappedRows);
+          setProductsCount(products.length);
+          setUniqueItems(products.length);
+          setInventoryPage(1);
+          setInventoryScrollTop(0);
         });
-        setHeaders(baseHeaders);
-        setRows(mappedRows);
-        setProductsCount(products.length);
-        setUniqueItems(products.length);
-        setInventoryPage(1);
-        setInventoryScrollTop(0);
       }
     } catch { /* ignore */ }
-  }, []);
+  }, [toInventoryRow]);
 
-  useEffect(() => { loadInventoryFromDB(); }, [loadInventoryFromDB]);
+  useEffect(() => {
+    let cancelled = false;
+    const run = () => {
+      if (!cancelled) void loadInventoryFromDB();
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(run, { timeout: 1000 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(id);
+      };
+    }
+
+    const timeoutId = window.setTimeout(run, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadInventoryFromDB]);
 
   // Reload when products change externally
   useEffect(() => {
@@ -162,38 +235,51 @@ export default function App() {
     popupTimer.current = setTimeout(() => setLastScanPopup(null), 3000);
   }, [activeTab]);
 
-  const setTempStatus = (type, msg) => {
-    setStatus(type);
-    setStatusMsg(msg);
-    setScanFlash(type);
-    clearTimeout(statusTimer.current);
-    statusTimer.current = setTimeout(() => {
-      setScanFlash(null);
-      setStatus('idle');
-      setStatusMsg('Ready to scan');
-    }, 2500);
-  };
-
   // ── Barcode processing (DB-based) ─────────────────────────────────────────
   const processBarcode = useCallback(async (barcode, source = 'scan') => {
     if (!window.electronAPI) {
       // Browser / dev mode fallback — just update local state
-      const existing = rows.find(r => String(r[barcodeColName]) === String(barcode));
+      const existing = rowsRef.current.find(r => String(r[barcodeColName]) === String(barcode));
       const now = new Date().toLocaleString();
-      let newRows;
-      let isDuplicate = false;
-      if (existing) {
-        newRows = rows.map(r =>
-          String(r[barcodeColName]) === String(barcode)
-            ? { ...r, [quantityColName]: (r[quantityColName] || 0) + 1, [timestampColName]: now }
-            : r
-        );
-        isDuplicate = true;
-      } else {
-        newRows = [...rows, { [barcodeColName]: barcode, [quantityColName]: 1, [timestampColName]: now }];
-      }
-      setRows(newRows);
-      setUniqueItems(newRows.length);
+      const isDuplicate = Boolean(existing);
+      startTransition(() => {
+        setRows(prev => {
+          if (existing) {
+            return prev.map(r => (
+              String(r[barcodeColName]) === String(barcode)
+                ? {
+                    ...r,
+                    [quantityColName]: (Number(r[quantityColName]) || 0) + 1,
+                    [timestampColName]: now,
+                    __searchText: [
+                      r[barcodeColName],
+                      r.Name,
+                      r.SKU,
+                      r.Price,
+                      (Number(r[quantityColName]) || 0) + 1,
+                      r.Category,
+                      now,
+                    ].map(value => String(value ?? '')).join(' ').toLowerCase(),
+                  }
+                : r
+            ));
+          }
+          return [...prev, {
+            [barcodeColName]: barcode,
+            Name: '',
+            SKU: '',
+            Price: 0,
+            [quantityColName]: 1,
+            Category: '',
+            [timestampColName]: now,
+            __searchText: [barcode, 0, 1, now].map(value => String(value ?? '')).join(' ').toLowerCase(),
+          }];
+        });
+        if (!isDuplicate) {
+          setUniqueItems(count => count + 1);
+          setProductsCount(count => count + 1);
+        }
+      });
       const entry = { barcode, time: new Date().toLocaleTimeString(), isDuplicate, source };
       setScans(prev => [entry, ...prev.slice(0, 99)]);
       showLastScanPopup(entry);
@@ -218,6 +304,7 @@ export default function App() {
           updated_at: now,
         };
         await window.electronAPI.saveProduct(updated);
+        applyInventoryRow(updated);
         const entry = { barcode, time: new Date().toLocaleTimeString(), isDuplicate: true, source };
         setScans(prev => [entry, ...prev.slice(0, 99)]);
         showLastScanPopup(entry);
@@ -240,6 +327,7 @@ export default function App() {
           setTempStatus('error', saveResult?.error || 'Save failed');
           return;
         }
+        applyInventoryRow({ ...newProduct, created_at: now, updated_at: now }, { createIfMissing: true });
         const entry = { barcode, time: new Date().toLocaleTimeString(), isDuplicate: false, source };
         setScans(prev => [entry, ...prev.slice(0, 99)]);
         showLastScanPopup(entry);
@@ -247,12 +335,11 @@ export default function App() {
         setTempStatus('success', `New item: ${barcode}`);
       }
 
-      // Refresh inventory table from DB
-      await loadInventoryFromDB();
+      return;
     } catch (err) {
       setTempStatus('error', err.message || 'Scan failed');
     }
-  }, [activeTab, inventoryAddMode, loadInventoryFromDB, rows, showLastScanPopup]);
+  }, [activeTab, inventoryAddMode, applyInventoryRow, showLastScanPopup, setTempStatus]);
 
   const handleScannedBarcode = useCallback(async (barcode, source = 'scan') => {
     if (!window.electronAPI) {
@@ -416,15 +503,16 @@ export default function App() {
   };
 
   // ── Derived data ─────────────────────────────────────────────────────────
-  const searchTerm = searchQuery.trim().toLowerCase();
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const inventoryPageSize  = 50;
   const inventoryRowHeight = 42;
   const inventoryOverscan  = 6;
 
   const filteredRows = useMemo(() => {
-    if (!searchTerm) return rows;
-    return rows.filter(row => headers.some(h => String(row[h] ?? '').toLowerCase().includes(searchTerm)));
-  }, [headers, rows, searchTerm]);
+    const term = deferredSearchQuery.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter(row => String(row.__searchText || '').includes(term));
+  }, [deferredSearchQuery, rows]);
 
   const duplicateCount = useMemo(() => scans.reduce((c, s) => c + (s.isDuplicate ? 1 : 0), 0), [scans]);
   const totalQuantity  = useMemo(() => rows.reduce((sum, r) => sum + (Number(r[quantityColName]) || 0), 0), [rows]);
@@ -667,9 +755,13 @@ export default function App() {
             </div>
 
             {activeTab === 'billing' ? (
-              <BillingModule />
+              <Suspense fallback={<div className="panel-loading">Loading billing…</div>}>
+                <BillingModule />
+              </Suspense>
             ) : activeTab === 'barcode' ? (
-              <BarcodeGenerator />
+              <Suspense fallback={<div className="panel-loading">Loading barcode tools…</div>}>
+                <BarcodeGenerator />
+              </Suspense>
             ) : activeTab === 'data' ? (
               <div className="table-wrap" ref={tableWrapRef} onScroll={(e) => setInventoryScrollTop(e.currentTarget.scrollTop)}>
                 {rows.length > 0 && filteredRows.length > 0 && (

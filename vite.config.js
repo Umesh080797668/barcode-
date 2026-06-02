@@ -5,4 +5,12 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: './',
+  build: {
+    target: 'chrome120',
+    minify: 'esbuild',
+    cssMinify: 'esbuild',
+    sourcemap: false,
+    reportCompressedSize: false,
+    chunkSizeWarningLimit: 1400,
+  },
 })

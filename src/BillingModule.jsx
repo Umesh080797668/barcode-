@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, useDeferredValue } from 'react';
 import { formatCurrency, formatNumber } from './utils/format';
 
 let invoiceSequence = 0;
@@ -31,12 +31,13 @@ export default function BillingModule() {
   const [statusMsg, setStatusMsg] = useState('');
   const [isElectron] = useState(!!window.electronAPI);
   const productsRef = useRef([]);
+  const productLookupRef = useRef(new Map());
 
   const barcodeText = (value) => (value === null || value === undefined ? '' : String(value));
 
   const refreshProducts = useCallback(async () => {
     if (!isElectron) return;
-    const r = await window.electronAPI.getProducts();
+    const r = await window.electronAPI.getProducts({ billingOnly: true });
     if (r.success) setProducts(r.products || []);
   }, [isElectron]);
 
@@ -90,6 +91,11 @@ export default function BillingModule() {
 
   useEffect(() => {
     productsRef.current = products;
+    const lookup = new Map();
+    for (const product of products) {
+      lookup.set(barcodeText(product?.barcode), product);
+    }
+    productLookupRef.current = lookup;
   }, [products]);
 
   // When switching to supplier return, clear discounts and warranties from cart items
@@ -149,31 +155,11 @@ export default function BillingModule() {
     });
   }, [transactionMode]);
 
-  const buildProductFromInventoryRow = useCallback((row, fallbackBarcode) => {
-    if (!row) return null;
-    // Products now come from DB with lowercase field names
-    const barcode = barcodeText(row.barcode || fallbackBarcode);
-    if (!barcode) return null;
-
-    const scanMode = String(row.scan_mode ?? '').trim() === 'inventory_only' ? 'inventory_only' : 'normal';
-    if (scanMode === 'inventory_only') return null;
-
-    return {
-      barcode,
-      name: String(row.name || barcode),
-      price: Number(row.price) || 0,
-      quantity: Number(row.quantity) || 1,
-      scan_mode: scanMode,
-      warranty: row.warranty || '',
-      remaining_warranty: row.remaining_warranty || '',
-    };
-  }, []);
-
   const resolveScannedProduct = useCallback(async (barcode) => {
     const bc = barcodeText(barcode);
     if (!bc) return null;
 
-    let prod = productsRef.current.find(p => barcodeText(p.barcode) === bc) || null;
+    let prod = productLookupRef.current.get(bc) || null;
     if (prod) return prod;
 
     if (isElectron) {
@@ -185,12 +171,13 @@ export default function BillingModule() {
           const exists = prev.some(p => barcodeText(p.barcode) === bc);
           return exists ? prev : [direct.product, ...prev];
         });
+          productLookupRef.current.set(bc, direct.product);
         return prod;
       }
     }
 
     return null;
-  }, [buildProductFromInventoryRow, isElectron]);
+  }, [isElectron]);
 
   const updateCartItem = (barcode, field, value) => {
     const targetBarcode = barcodeText(barcode);
@@ -621,12 +608,18 @@ export default function BillingModule() {
   };
 
   // Filtered product list
-  const filteredProducts = products.filter(p => {
-    if (p.scan_mode === 'inventory_only') return false;
-    if (!searchProd) return true;
-    return (p.name || '').toLowerCase().includes(searchProd.toLowerCase())
-      || (p.barcode || '').includes(searchProd);
-  });
+  const deferredSearchProd = useDeferredValue(searchProd);
+  const filteredProducts = useMemo(() => {
+    const query = deferredSearchProd.trim().toLowerCase();
+    return products.filter(p => {
+      if (p.scan_mode === 'inventory_only') return false;
+      if (!query) return true;
+      return (p.name || '').toLowerCase().includes(query)
+        || (p.barcode || '').includes(query)
+        || (p.sku || '').toLowerCase().includes(query)
+        || (p.category || '').toLowerCase().includes(query);
+    });
+  }, [deferredSearchProd, products]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
