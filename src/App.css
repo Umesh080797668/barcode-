@@ -1902,3 +1902,149 @@ button { cursor: pointer; font-family: var(--font-sans); outline: none; }
 .shop-settings { max-width: 460px; padding: 16px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
 .shop-settings label { font-size: 11px; color: #8b8c99; margin-top: 6px; }
 
+
+/* ── Out of Stock Panel ──────────────────────────────────────────────────── */
+.oos-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg, #0e0f12);
+}
+
+.oos-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid var(--border, #2a2b2f);
+  background: var(--card-bg, rgba(255,255,255,.03));
+  flex-shrink: 0;
+}
+
+.oos-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.oos-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.oos-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text, #eee);
+  margin: 0 0 2px;
+}
+
+.oos-sub {
+  font-size: 12px;
+  color: var(--muted, #888);
+  margin: 0;
+}
+
+.oos-badge-large {
+  background: #450a0a;
+  color: #f87171;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+}
+
+.oos-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted, #888);
+  padding: 60px 24px;
+}
+
+.oos-empty-icon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.oos-empty h3 {
+  color: var(--text, #eee);
+  margin: 0;
+  font-size: 15px;
+}
+
+.oos-empty p {
+  font-size: 13px;
+  margin: 0;
+}
+
+.oos-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.oos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.oos-table thead tr {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface, #16171b);
+}
+
+.oos-table th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted, #888);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  border-bottom: 1px solid var(--border, #2a2b2f);
+}
+
+.oos-row {
+  border-bottom: 1px solid var(--border-soft, #1e1f24);
+  transition: background .12s;
+}
+
+.oos-row:hover {
+  background: rgba(248, 113, 113, 0.04);
+}
+
+.oos-row td {
+  padding: 10px 14px;
+  color: var(--text, #eee);
+}
+
+/* Tab badge for out-of-stock count */
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f87171;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 1px 5px;
+  margin-left: 5px;
+  min-width: 16px;
+  line-height: 1.2;
+}
+
+/* Modal field dropdown in BarcodeGenerator */
+.bc-modal-hint {
+  font-size: 11px;
+  color: var(--muted, #888);
+  margin-top: 4px;
+}

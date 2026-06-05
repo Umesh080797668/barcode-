@@ -20,6 +20,13 @@ function ensureJsBarcode() {
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+// Predefined product modal/type options
+const PRODUCT_MODALS = [
+  '', 'Charger', 'Phone', 'Headphones', 'Laptop', 'Tablet', 'Smartwatch',
+  'Speaker', 'Cable', 'Adapter', 'Power Bank', 'Keyboard', 'Mouse',
+  'Monitor', 'Earbuds', 'Camera', 'Printer', 'Router', 'Other',
+];
+
 // core product fields shown on the create/edit form. Keep 'name', 'quantity' and 'price' as required.
 const CORE_FIELDS = [
   { key: 'name',     label: 'Product Name', type: 'text' },
@@ -197,6 +204,7 @@ export default function BarcodeGenerator() {
       price:         '',
       quantity:      '',
       category:      '',
+      modal:         '',
       notes:         '',
       extra_fields:  {},
     };
@@ -223,7 +231,11 @@ export default function BarcodeGenerator() {
     if (!editProduct?.price && editProduct?.price !== 0) { showToast('Price required', 'err'); return; }
     if (barcodeMode === 'manual' && !String(editProduct?.barcode || '').trim()) { showToast('Barcode required', 'err'); return; }
     setSaving(true);
-    const res = await apiCall('saveProduct', editProduct);
+    const productToSave = {
+      ...editProduct,
+      category: String(editProduct?.modal || '').trim(),
+    };
+    const res = await apiCall('saveProduct', productToSave);
     setSaving(false);
     if (res.success) {
       showToast('Product saved ✓');
@@ -460,6 +472,34 @@ export default function BarcodeGenerator() {
                 />
               </div>
             ))}
+
+            {/* Modal / Product Type field */}
+            <div className="bc-field-group">
+              <label className="bc-label">Product Type / Modal</label>
+              <select
+                className="bc-input"
+                value={PRODUCT_MODALS.includes(editProduct.modal ?? '') ? (editProduct.modal ?? '') : '__custom__'}
+                onChange={e => {
+                  if (e.target.value !== '__custom__') setFieldVal('modal', e.target.value);
+                  else setFieldVal('modal', '');
+                }}
+              >
+                {PRODUCT_MODALS.map(m => (
+                  <option key={m} value={m}>{m === '' ? '— Select type —' : m}</option>
+                ))}
+                <option value="__custom__">✏ Custom…</option>
+              </select>
+              {/* Show free-text input only when "Custom" is chosen or value isn't in the list */}
+              {(!PRODUCT_MODALS.includes(editProduct.modal ?? '') || editProduct.modal === '') && (
+                <input
+                  className="bc-input"
+                  style={{ marginTop: 6 }}
+                  placeholder="Type custom product type / model name"
+                  value={editProduct.modal ?? ''}
+                  onChange={e => setFieldVal('modal', e.target.value)}
+                />
+              )}
+            </div>
 
             {/* custom fields */}
             {customFields.length > 0 && (

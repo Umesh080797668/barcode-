@@ -77,6 +77,12 @@ function getLegacyDbPaths(app) {
           schemaChanged = true;
         }
 
+        const hasModal = productColumns?.[0]?.values?.some((row) => row[1] === 'modal');
+        if (!hasModal) {
+          this.db.run(`ALTER TABLE products ADD COLUMN modal TEXT`);
+          schemaChanged = true;
+        }
+
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_products_scan_mode ON products(scan_mode)`);
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)`);
 
@@ -235,7 +241,7 @@ function getLegacyDbPaths(app) {
       if (existing) {
         const stmt = this.db.prepare(`
           UPDATE products 
-          SET name = ?, sku = ?, price = ?, quantity = ?, scan_mode = ?, category = ?, custom_fields = ?, updated_at = CURRENT_TIMESTAMP
+          SET name = ?, sku = ?, price = ?, quantity = ?, scan_mode = ?, category = ?, modal = ?, custom_fields = ?, updated_at = CURRENT_TIMESTAMP
           WHERE barcode = ?
         `);
         stmt.run([
@@ -245,14 +251,15 @@ function getLegacyDbPaths(app) {
           product.quantity || 0,
           scanMode,
           product.category || null,
+          product.modal || null,
           customFieldsStr,
           product.barcode
         ]);
         stmt.free();
       } else {
         const stmt = this.db.prepare(`
-          INSERT INTO products (barcode, name, sku, price, quantity, scan_mode, category, custom_fields)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO products (barcode, name, sku, price, quantity, scan_mode, category, modal, custom_fields)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         stmt.run([
           product.barcode,
@@ -262,6 +269,7 @@ function getLegacyDbPaths(app) {
           product.quantity || 0,
           scanMode,
           product.category || null,
+          product.modal || null,
           customFieldsStr
         ]);
         stmt.free();
@@ -287,6 +295,7 @@ function getLegacyDbPaths(app) {
         quantity: product.quantity ?? existing?.quantity ?? 0,
         scan_mode: product.scan_mode ?? existing?.scan_mode ?? 'normal',
         category: product.category ?? existing?.category ?? null,
+        modal: product.modal ?? existing?.modal ?? null,
         custom_fields: product.custom_fields ?? existing?.custom_fields ?? {},
       };
 
@@ -294,7 +303,7 @@ function getLegacyDbPaths(app) {
       if (existing) {
         const stmt = this.db.prepare(`
           UPDATE products
-          SET name = ?, sku = ?, price = ?, quantity = ?, scan_mode = ?, category = ?, custom_fields = ?, updated_at = CURRENT_TIMESTAMP
+          SET name = ?, sku = ?, price = ?, quantity = ?, scan_mode = ?, category = ?, modal = ?, custom_fields = ?, updated_at = CURRENT_TIMESTAMP
           WHERE barcode = ?
         `);
         stmt.run([
@@ -304,14 +313,15 @@ function getLegacyDbPaths(app) {
           merged.quantity || 0,
           merged.scan_mode,
           merged.category,
+          merged.modal,
           customFieldsStr,
           merged.barcode,
         ]);
         stmt.free();
       } else {
         const stmt = this.db.prepare(`
-          INSERT INTO products (barcode, name, sku, price, quantity, scan_mode, category, custom_fields)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO products (barcode, name, sku, price, quantity, scan_mode, category, modal, custom_fields)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         stmt.run([
           merged.barcode,
@@ -321,6 +331,7 @@ function getLegacyDbPaths(app) {
           merged.quantity || 0,
           merged.scan_mode,
           merged.category,
+          merged.modal,
           customFieldsStr,
         ]);
         stmt.free();
@@ -431,7 +442,7 @@ function getLegacyDbPaths(app) {
       };
 
       const products = readRows(`
-        SELECT barcode, name, sku, price, quantity, scan_mode, category, created_at, updated_at, custom_fields
+        SELECT barcode, name, sku, price, quantity, scan_mode, category, modal, created_at, updated_at, custom_fields
         FROM products
         ORDER BY id ASC
       `).map((row) => ({
@@ -561,16 +572,17 @@ function getLegacyDbPaths(app) {
             quantity: Number(product.quantity) || 0,
             scan_mode: product.scan_mode || 'normal',
             category: product.category ?? null,
+            modal: product.modal ?? null,
             custom_fields: serializeCustomFields(product.custom_fields_json ?? product.custom_fields),
           };
 
           const existing = existingProducts.get(barcode);
           if (existing) {
-            const merged = mergeMissingValues(existing, incomingProduct, ['name', 'sku', 'price', 'quantity', 'scan_mode', 'category', 'custom_fields']);
+            const merged = mergeMissingValues(existing, incomingProduct, ['name', 'sku', 'price', 'quantity', 'scan_mode', 'category', 'modal', 'custom_fields']);
             if (merged.changed) {
               const stmt = this.db.prepare(`
                 UPDATE products
-                SET name = ?, sku = ?, price = ?, quantity = ?, scan_mode = ?, category = ?, custom_fields = ?, updated_at = CURRENT_TIMESTAMP
+                SET name = ?, sku = ?, price = ?, quantity = ?, scan_mode = ?, category = ?, modal = ?, custom_fields = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE barcode = ?
               `);
               stmt.run([
@@ -580,6 +592,7 @@ function getLegacyDbPaths(app) {
                 merged.next.quantity || 0,
                 merged.next.scan_mode,
                 merged.next.category,
+                merged.next.modal,
                 merged.next.custom_fields,
                 barcode,
               ]);
@@ -589,8 +602,8 @@ function getLegacyDbPaths(app) {
             }
           } else {
             const stmt = this.db.prepare(`
-              INSERT INTO products (barcode, name, sku, price, quantity, scan_mode, category, custom_fields)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO products (barcode, name, sku, price, quantity, scan_mode, category, modal, custom_fields)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
             stmt.run([
               incomingProduct.barcode,
@@ -600,6 +613,7 @@ function getLegacyDbPaths(app) {
               incomingProduct.quantity,
               incomingProduct.scan_mode,
               incomingProduct.category,
+              incomingProduct.modal,
               incomingProduct.custom_fields,
             ]);
             stmt.free();

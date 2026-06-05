@@ -59,10 +59,9 @@ export default function App() {
     const row = {
       [barcodeColName]:  product?.barcode || '',
       Name:              product?.name || '',
-      SKU:               product?.sku || '',
       Price:             product?.price ?? 0,
       [quantityColName]:  product?.quantity ?? 0,
-      Category:          product?.category || '',
+      Category:          product?.category || product?.modal || '',
       [timestampColName]: product?.updated_at || product?.created_at || '',
     };
 
@@ -185,7 +184,7 @@ export default function App() {
           }
         }
         const cfKeysArr = Array.from(cfKeys);
-        const baseHeaders = [barcodeColName, 'Name', 'SKU', 'Price', quantityColName, 'Category', timestampColName, ...cfKeysArr];
+        const baseHeaders = [barcodeColName, 'Name', 'Price', quantityColName, 'Category', timestampColName, ...cfKeysArr];
         const mappedRows = products.map(toInventoryRow);
         startTransition(() => {
           setHeaders(baseHeaders);
@@ -267,7 +266,6 @@ export default function App() {
           return [...prev, {
             [barcodeColName]: barcode,
             Name: '',
-            SKU: '',
             Price: 0,
             [quantityColName]: 1,
             Category: '',
@@ -320,6 +318,7 @@ export default function App() {
           quantity: 1,
           scan_mode: inventoryAddMode,
           category: '',
+          modal: '',
           custom_fields: {},
         };
         const saveResult = await window.electronAPI.saveProduct(newProduct);
@@ -517,6 +516,9 @@ export default function App() {
   const duplicateCount = useMemo(() => scans.reduce((c, s) => c + (s.isDuplicate ? 1 : 0), 0), [scans]);
   const totalQuantity  = useMemo(() => rows.reduce((sum, r) => sum + (Number(r[quantityColName]) || 0), 0), [rows]);
 
+  // Zero-quantity products for the out-of-stock panel
+  const zeroQtyRows = useMemo(() => rows.filter(r => Number(r[quantityColName]) === 0), [rows]);
+
   const displayHeaders = useMemo(
     () => headers.filter(h => h !== 'Scan Mode' && h !== 'scan_mode'),
     [headers]
@@ -550,10 +552,15 @@ export default function App() {
     if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0;
   }, [currentInventoryPage]);
 
+  const lastScrolledBarcodeRef = useRef(null);
+
   useEffect(() => {
     if (activeTab !== 'data') return;
     const latestBarcode = scans[0]?.barcode;
     if (!latestBarcode || !tableBodyRef.current || filteredRows.length === 0) return;
+    // Only scroll when a brand-new scan arrives, not on re-renders
+    if (latestBarcode === lastScrolledBarcodeRef.current) return;
+    lastScrolledBarcodeRef.current = latestBarcode;
     const targetIndex = filteredRows.findIndex(row => String(row[barcodeColName]) === String(latestBarcode));
     if (targetIndex < 0) return;
     const targetVisibleIndex = targetIndex - inventoryPageStart - inventoryVisibleStart;
@@ -739,6 +746,10 @@ export default function App() {
                 <button className={`tab ${activeTab === 'data' ? 'tab-on' : ''}`} onClick={() => setActiveTab('data')}><IconTable /> Inventory</button>
                 <button className={`tab ${activeTab === 'barcode' ? 'tab-on' : ''}`} onClick={() => setActiveTab('barcode')}><IconBarcode /> Barcode Creator</button>
                 <button className={`tab ${activeTab === 'billing' ? 'tab-on' : ''}`} onClick={() => setActiveTab('billing')}><IconPrinter /> Billing</button>
+                <button className={`tab ${activeTab === 'outofstock' ? 'tab-on' : ''}`} onClick={() => setActiveTab('outofstock')} style={{ position: 'relative' }}>
+                  <IconAlert /> Out of Stock
+                  {zeroQtyRows.length > 0 && <span className="tab-badge">{zeroQtyRows.length}</span>}
+                </button>
                 <button className={`tab ${activeTab === 'settings' ? 'tab-on' : ''}`} onClick={() => setActiveTab('settings')}><IconSettings /> Settings</button>
               </div>
               {activeTab === 'data' && rows.length > 0 && (
@@ -829,6 +840,57 @@ export default function App() {
                       )}
                     </tbody>
                   </table>
+                )}
+              </div>
+            ) : activeTab === 'outofstock' ? (
+              /* Out of Stock Panel */
+              <div className="oos-panel">
+                <div className="oos-header">
+                  <div className="oos-header-left">
+                    <span className="oos-icon">⚠️</span>
+                    <div>
+                      <h2 className="oos-title">Out of Stock</h2>
+                      <p className="oos-sub">Products with 0 quantity that need restocking</p>
+                    </div>
+                  </div>
+                  <div className="oos-badge-large">{zeroQtyRows.length} item{zeroQtyRows.length !== 1 ? 's' : ''}</div>
+                </div>
+
+                {zeroQtyRows.length === 0 ? (
+                  <div className="oos-empty">
+                    <div className="oos-empty-icon">✅</div>
+                    <h3>All products are in stock!</h3>
+                    <p>No products with zero quantity found.</p>
+                  </div>
+                ) : (
+                  <div className="oos-table-wrap">
+                    <table className="oos-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Barcode</th>
+                          <th>Name</th>
+                          <th>Category</th>
+                          <th>Price</th>
+                          <th>Last Updated</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {zeroQtyRows.map((row, i) => (
+                          <tr key={i} className="oos-row">
+                            <td className="td-num">{i + 1}</td>
+                            <td className="td-code">{String(row[barcodeColName] ?? '')}</td>
+                            <td style={{ fontWeight: 600 }}>{String(row['Name'] ?? '')}</td>
+                            <td>{String(row['Category'] ?? '')}</td>
+                            <td>{`Rs. ${formatCurrency(row['Price'] || 0)}`}</td>
+                            <td style={{ color: 'var(--muted)', fontSize: 11 }}>
+                              {row[timestampColName] ? new Date(row[timestampColName]).toLocaleDateString() : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             ) : (
@@ -977,3 +1039,4 @@ const IconSettings = () => <svg width="14" height="14" viewBox="0 0 24 24" fill=
 const IconSearch = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
 const IconBarcode = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="2" height="16" rx="0.5"/><rect x="5" y="4" width="1" height="16" rx="0.5"/><rect x="7" y="4" width="2" height="16" rx="0.5"/><rect x="11" y="4" width="1" height="16" rx="0.5"/><rect x="13" y="4" width="3" height="16" rx="0.5"/><rect x="17" y="4" width="1" height="16" rx="0.5"/><rect x="19" y="4" width="3" height="16" rx="0.5"/></svg>;
 const IconPrinter = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>;
+const IconAlert = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;

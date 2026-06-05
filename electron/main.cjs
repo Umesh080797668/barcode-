@@ -94,7 +94,7 @@ async function buildFullCsvFromDb() {
     }
   }
   const cfKeysArr = Array.from(cfKeys);
-  const productHeaders = ['barcode', 'name', 'sku', 'price', 'quantity', 'category', 'scan_mode', 'created_at', 'updated_at', ...cfKeysArr];
+  const productHeaders = ['barcode', 'name', 'sku', 'price', 'quantity', 'modal', 'category', 'scan_mode', 'created_at', 'updated_at', ...cfKeysArr];
   const productRows = products.map(p => {
     let cf = {};
     if (p.custom_fields) {
