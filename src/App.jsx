@@ -26,7 +26,9 @@ export default function App() {
   const [inventoryAddMode, setInventoryAddMode] = useState('inventory_only');
   const [lastScanPopup, setLastScanPopup]     = useState(null);
   const [inventoryPage, setInventoryPage]     = useState(1);
-  const [inventoryScrollTop, setInventoryScrollTop] = useState(0);
+  const inventoryScrollTopRef                 = useRef(0);
+  const [inventoryScrollVersion, setInventoryScrollVersion] = useState(0);
+  const scrollRafRef                          = useRef(null);
   const [inventoryViewportHeight, setInventoryViewportHeight] = useState(0);
   const [appVersion, setAppVersion]           = useState('');
   const [updateStatus, setUpdateStatus]       = useState('Idle');
@@ -192,7 +194,7 @@ export default function App() {
           setProductsCount(products.length);
           setUniqueItems(products.length);
           setInventoryPage(1);
-          setInventoryScrollTop(0);
+          inventoryScrollTopRef.current = 0;
         });
       }
     } catch { /* ignore */ }
@@ -529,6 +531,10 @@ export default function App() {
   const inventoryPageStart   = (currentInventoryPage - 1) * inventoryPageSize;
   const inventoryPageRows    = useMemo(() => filteredRows.slice(inventoryPageStart, inventoryPageStart + inventoryPageSize), [filteredRows, inventoryPageStart]);
 
+  // Read scroll position from ref. inventoryScrollVersion is bumped via rAF in onScroll
+  // so this value re-reads *after* the browser has settled the scroll — preventing
+  // the spacer height change from snapping the viewport to top/bottom.
+  const inventoryScrollTop    = inventoryScrollTopRef.current + (inventoryScrollVersion * 0);
   const inventoryVisibleStart = Math.max(0, Math.floor(inventoryScrollTop / inventoryRowHeight) - inventoryOverscan);
   const inventoryVisibleCount = Math.max(1, Math.ceil((inventoryViewportHeight || inventoryRowHeight) / inventoryRowHeight) + inventoryOverscan * 2);
   const inventoryVisibleRows  = useMemo(() => inventoryPageRows.slice(inventoryVisibleStart, inventoryVisibleStart + inventoryVisibleCount), [inventoryPageRows, inventoryVisibleCount, inventoryVisibleStart]);
@@ -549,6 +555,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    inventoryScrollTopRef.current = 0;
     if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0;
   }, [currentInventoryPage]);
 
@@ -565,7 +572,9 @@ export default function App() {
     if (targetIndex < 0) return;
     const targetVisibleIndex = targetIndex - inventoryPageStart - inventoryVisibleStart;
     if (targetVisibleIndex < 0 || targetVisibleIndex >= inventoryVisibleRows.length) {
-      if (tableWrapRef.current) tableWrapRef.current.scrollTop = Math.max(0, (targetIndex - inventoryPageStart) * inventoryRowHeight);
+      const newScrollTop = Math.max(0, (targetIndex - inventoryPageStart) * inventoryRowHeight);
+      inventoryScrollTopRef.current = newScrollTop;
+      if (tableWrapRef.current) tableWrapRef.current.scrollTop = newScrollTop;
       return;
     }
     const targetRow = tableBodyRef.current.children[targetVisibleIndex + 1];
@@ -757,8 +766,8 @@ export default function App() {
                   <div className="search-box">
                     <IconSearch />
                     <input className="search-input" placeholder="Filter rows…" value={searchQuery}
-                      onChange={e => { setSearchQuery(e.target.value); setInventoryPage(1); setInventoryScrollTop(0); }} />
-                    {searchQuery && <button className="search-clear" onClick={() => { setSearchQuery(''); setInventoryPage(1); setInventoryScrollTop(0); }}>×</button>}
+                      onChange={e => { setSearchQuery(e.target.value); setInventoryPage(1); inventoryScrollTopRef.current = 0; if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0; }} />
+                    {searchQuery && <button className="search-clear" onClick={() => { setSearchQuery(''); setInventoryPage(1); inventoryScrollTopRef.current = 0; if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0; }}>×</button>}
                   </div>
                   <span className="row-count">{filteredRows.length} of {rows.length}</span>
                 </div>
@@ -774,16 +783,22 @@ export default function App() {
                 <BarcodeGenerator />
               </Suspense>
             ) : activeTab === 'data' ? (
-              <div className="table-wrap" ref={tableWrapRef} onScroll={(e) => setInventoryScrollTop(e.currentTarget.scrollTop)}>
+              <div className="table-wrap" ref={tableWrapRef} onScroll={(e) => {
+                inventoryScrollTopRef.current = e.currentTarget.scrollTop;
+                if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+                scrollRafRef.current = requestAnimationFrame(() => {
+                  setInventoryScrollVersion(v => v + 1);
+                });
+              }}>
                 {rows.length > 0 && filteredRows.length > 0 && (
                   <div className="pagination-bar">
                     <div className="pagination-meta">Showing {inventoryPageStart + 1}–{Math.min(inventoryPageStart + inventoryPageSize, filteredRows.length)} of {filteredRows.length}</div>
                     <div className="pagination-controls">
-                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(1); setInventoryScrollTop(0); }} disabled={currentInventoryPage === 1}>First</button>
-                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(p => Math.max(1, p - 1)); setInventoryScrollTop(0); }} disabled={currentInventoryPage === 1}>Prev</button>
+                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(1); inventoryScrollTopRef.current = 0; if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0; }} disabled={currentInventoryPage === 1}>First</button>
+                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(p => Math.max(1, p - 1)); inventoryScrollTopRef.current = 0; if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0; }} disabled={currentInventoryPage === 1}>Prev</button>
                       <span className="pagination-page">Page {currentInventoryPage} / {totalInventoryPages}</span>
-                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(p => Math.min(totalInventoryPages, p + 1)); setInventoryScrollTop(0); }} disabled={currentInventoryPage >= totalInventoryPages}>Next</button>
-                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(totalInventoryPages); setInventoryScrollTop(0); }} disabled={currentInventoryPage >= totalInventoryPages}>Last</button>
+                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(p => Math.min(totalInventoryPages, p + 1)); inventoryScrollTopRef.current = 0; if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0; }} disabled={currentInventoryPage >= totalInventoryPages}>Next</button>
+                      <button className="btn-ghost btn-sm" onClick={() => { setInventoryPage(totalInventoryPages); inventoryScrollTopRef.current = 0; if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0; }} disabled={currentInventoryPage >= totalInventoryPages}>Last</button>
                     </div>
                   </div>
                 )}
