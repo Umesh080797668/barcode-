@@ -2048,3 +2048,70 @@ button { cursor: pointer; font-family: var(--font-sans); outline: none; }
   color: var(--muted, #888);
   margin-top: 4px;
 }
+
+/* ── Used Purchase Module ─────────────────────────────────────────────────── */
+.up-layout {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+.up-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid #1e1f24;
+}
+
+.up-section:last-child {
+  border-bottom: none;
+}
+
+.up-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+
+.up-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #8b8c99;
+}
+
+.up-label input,
+.up-label select {
+  margin-bottom: 0;
+}
+
+.req-star {
+  color: #f87171;
+  font-size: 10px;
+  margin-left: 2px;
+}
+
+.up-items-table { margin-top: 0; }
+.up-name-input  { width: 120px; }
+
+.up-summary-section {
+  background: rgba(28, 108, 240, 0.04);
+}
+
+.cart-qty-btn {
+  background: #2a2b2f;
+  border: 1px solid #3a3b40;
+  color: #e2e3ea;
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cart-qty-btn:hover { background: #3a3b40; }

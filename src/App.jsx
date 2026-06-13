@@ -5,53 +5,54 @@ import ScanVaultTutorial from './ScanVaultTutorial';
 
 const BarcodeGenerator = lazy(() => import('./BarcodeGenerator'));
 const BillingModule = lazy(() => import('./BillingModule'));
+const UsedPurchaseModule = lazy(() => import('./UsedPurchaseModule'));
 
 export default function App() {
   const UPDATE_REPO = 'Umesh080797668/barcode-';
   const UPDATE_SKIP_KEY = 'scanvault_update_skip_version_v1';
 
   // ── State ────────────────────────────────────────────────────────────────
-  const [scans, setScans]                     = useState([]);
-  const [rows, setRows]                       = useState([]);
-  const [headers, setHeaders]                 = useState([]);
-  const [lastStatus, setStatus]               = useState('idle');
-  const [statusMsg, setStatusMsg]             = useState('Ready to scan');
-  const [activeTab, setActiveTab]             = useState('data');
-  const [searchQuery, setSearchQuery]         = useState('');
-  const [scanFlash, setScanFlash]             = useState(null);
+  const [scans, setScans] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [headers, setHeaders] = useState([]);
+  const [lastStatus, setStatus] = useState('idle');
+  const [statusMsg, setStatusMsg] = useState('Ready to scan');
+  const [activeTab, setActiveTab] = useState('data');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [scanFlash, setScanFlash] = useState(null);
   const [totalScansToday, setTotalScansToday] = useState(0);
-  const [uniqueItems, setUniqueItems]         = useState(0);
-  const [productsCount, setProductsCount]     = useState(0);
-  const [manualInput, setManualInput]         = useState('');
+  const [uniqueItems, setUniqueItems] = useState(0);
+  const [productsCount, setProductsCount] = useState(0);
+  const [manualInput, setManualInput] = useState('');
   const [inventoryAddMode, setInventoryAddMode] = useState('inventory_only');
-  const [lastScanPopup, setLastScanPopup]     = useState(null);
-  const [inventoryPage, setInventoryPage]     = useState(1);
-  const inventoryScrollTopRef                 = useRef(0);
+  const [lastScanPopup, setLastScanPopup] = useState(null);
+  const [inventoryPage, setInventoryPage] = useState(1);
+  const inventoryScrollTopRef = useRef(0);
   const [inventoryScrollVersion, setInventoryScrollVersion] = useState(0);
-  const scrollRafRef                          = useRef(null);
+  const scrollRafRef = useRef(null);
   const [inventoryViewportHeight, setInventoryViewportHeight] = useState(0);
-  const [appVersion, setAppVersion]           = useState('');
-  const [updateStatus, setUpdateStatus]       = useState('Idle');
-  const [updateBusy, setUpdateBusy]           = useState(false);
-  const [updateInfo, setUpdateInfo]           = useState(null);
-  const [isOnline, setIsOnline]               = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [appVersion, setAppVersion] = useState('');
+  const [updateStatus, setUpdateStatus] = useState('Idle');
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
-  const [backupProgress, setBackupProgress]   = useState(null);
-  const [csvExportPath, setCsvExportPath]     = useState(null);
+  const [backupProgress, setBackupProgress] = useState(null);
+  const [csvExportPath, setCsvExportPath] = useState(null);
   const [backupScheduleInfo, setBackupScheduleInfo] = useState(null);
-  const [lastAutoBackup, setLastAutoBackup]   = useState(null);
+  const [lastAutoBackup, setLastAutoBackup] = useState(null);
 
-  const barcodeColName   = 'Barcode';
-  const quantityColName  = 'Quantity';
+  const barcodeColName = 'Barcode';
+  const quantityColName = 'Quantity';
   const timestampColName = 'Last Scanned';
 
   const barcodeBuffer = useRef('');
-  const bufferTimer   = useRef(null);
-  const statusTimer   = useRef(null);
-  const popupTimer    = useRef(null);
-  const tableBodyRef  = useRef(null);
-  const tableWrapRef  = useRef(null);
-  const rowsRef       = useRef([]);
+  const bufferTimer = useRef(null);
+  const statusTimer = useRef(null);
+  const popupTimer = useRef(null);
+  const tableBodyRef = useRef(null);
+  const tableWrapRef = useRef(null);
+  const rowsRef = useRef([]);
 
   useEffect(() => {
     rowsRef.current = rows;
@@ -59,11 +60,11 @@ export default function App() {
 
   const toInventoryRow = useCallback((product) => {
     const row = {
-      [barcodeColName]:  product?.barcode || '',
-      Name:              product?.name || '',
-      Price:             product?.price ?? 0,
-      [quantityColName]:  product?.quantity ?? 0,
-      Category:          product?.category || product?.modal || '',
+      [barcodeColName]: product?.barcode || '',
+      Name: product?.name || '',
+      Price: product?.price ?? 0,
+      [quantityColName]: product?.quantity ?? 0,
+      Category: product?.category || product?.modal || '',
       [timestampColName]: product?.updated_at || product?.created_at || '',
     };
 
@@ -125,12 +126,12 @@ export default function App() {
 
   // ── Online detection ─────────────────────────────────────────────────────
   useEffect(() => {
-    const handleOnline  = () => setIsOnline(true);
+    const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online',  handleOnline);
+    window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
-      window.removeEventListener('online',  handleOnline);
+      window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
@@ -142,10 +143,10 @@ export default function App() {
       if (!payload?.operation) return;
       setBackupProgress({
         operation: payload.operation,
-        status:    payload.status || 'running',
-        phase:     payload.phase  || '',
-        progress:  typeof payload.progress === 'number' ? payload.progress : null,
-        details:   payload.details || '',
+        status: payload.status || 'running',
+        phase: payload.phase || '',
+        progress: typeof payload.progress === 'number' ? payload.progress : null,
+        details: payload.details || '',
         updatedAt: Date.now(),
       });
     });
@@ -249,19 +250,19 @@ export default function App() {
             return prev.map(r => (
               String(r[barcodeColName]) === String(barcode)
                 ? {
-                    ...r,
-                    [quantityColName]: (Number(r[quantityColName]) || 0) + 1,
-                    [timestampColName]: now,
-                    __searchText: [
-                      r[barcodeColName],
-                      r.Name,
-                      r.SKU,
-                      r.Price,
-                      (Number(r[quantityColName]) || 0) + 1,
-                      r.Category,
-                      now,
-                    ].map(value => String(value ?? '')).join(' ').toLowerCase(),
-                  }
+                  ...r,
+                  [quantityColName]: (Number(r[quantityColName]) || 0) + 1,
+                  [timestampColName]: now,
+                  __searchText: [
+                    r[barcodeColName],
+                    r.Name,
+                    r.SKU,
+                    r.Price,
+                    (Number(r[quantityColName]) || 0) + 1,
+                    r.Category,
+                    now,
+                  ].map(value => String(value ?? '')).join(' ').toLowerCase(),
+                }
                 : r
             ));
           }
@@ -293,7 +294,7 @@ export default function App() {
     try {
       // Get or create product in DB
       const getResult = await window.electronAPI.getProduct(barcode);
-      const existing  = getResult?.product || null;
+      const existing = getResult?.product || null;
 
       const now = new Date().toISOString();
       if (existing) {
@@ -459,7 +460,7 @@ export default function App() {
       const asset = (release.assets || []).find(item => /\.(exe|AppImage)$/i.test(item.name) && !/blockmap/i.test(item.name))
         || (release.assets || []).find(item => !/blockmap/i.test(item.name));
       const currentVersion = String(appVersion || '').replace(/^v/i, '');
-      const latestVersion  = String(release.tag_name || '').replace(/^v/i, '');
+      const latestVersion = String(release.tag_name || '').replace(/^v/i, '');
       const isUpToDate = currentVersion && latestVersion && currentVersion === latestVersion;
       const info = { tag: release.tag_name || '', name: release.name || release.tag_name || 'Latest release', body: release.body || '', assetName: asset?.name || '', assetUrl: asset?.browser_download_url || '', currentVersion, latestVersion, publishedAt: release.published_at || '', updateAvailable: !isUpToDate };
       const skippedVersion = localStorage.getItem(UPDATE_SKIP_KEY) || '';
@@ -505,9 +506,9 @@ export default function App() {
 
   // ── Derived data ─────────────────────────────────────────────────────────
   const deferredSearchQuery = useDeferredValue(searchQuery);
-  const inventoryPageSize  = 50;
+  const inventoryPageSize = 50;
   const inventoryRowHeight = 42;
-  const inventoryOverscan  = 6;
+  const inventoryOverscan = 6;
 
   const filteredRows = useMemo(() => {
     const term = deferredSearchQuery.trim().toLowerCase();
@@ -516,7 +517,7 @@ export default function App() {
   }, [deferredSearchQuery, rows]);
 
   const duplicateCount = useMemo(() => scans.reduce((c, s) => c + (s.isDuplicate ? 1 : 0), 0), [scans]);
-  const totalQuantity  = useMemo(() => rows.reduce((sum, r) => sum + (Number(r[quantityColName]) || 0), 0), [rows]);
+  const totalQuantity = useMemo(() => rows.reduce((sum, r) => sum + (Number(r[quantityColName]) || 0), 0), [rows]);
 
   // Zero-quantity products for the out-of-stock panel
   const zeroQtyRows = useMemo(() => rows.filter(r => Number(r[quantityColName]) === 0), [rows]);
@@ -526,20 +527,20 @@ export default function App() {
     [headers]
   );
 
-  const totalInventoryPages  = Math.max(1, Math.ceil(filteredRows.length / inventoryPageSize));
+  const totalInventoryPages = Math.max(1, Math.ceil(filteredRows.length / inventoryPageSize));
   const currentInventoryPage = Math.min(inventoryPage, totalInventoryPages);
-  const inventoryPageStart   = (currentInventoryPage - 1) * inventoryPageSize;
-  const inventoryPageRows    = useMemo(() => filteredRows.slice(inventoryPageStart, inventoryPageStart + inventoryPageSize), [filteredRows, inventoryPageStart]);
+  const inventoryPageStart = (currentInventoryPage - 1) * inventoryPageSize;
+  const inventoryPageRows = useMemo(() => filteredRows.slice(inventoryPageStart, inventoryPageStart + inventoryPageSize), [filteredRows, inventoryPageStart]);
 
   // Read scroll position from ref. inventoryScrollVersion is bumped via rAF in onScroll
   // so this value re-reads *after* the browser has settled the scroll — preventing
   // the spacer height change from snapping the viewport to top/bottom.
-  const inventoryScrollTop    = inventoryScrollTopRef.current + (inventoryScrollVersion * 0);
+  const inventoryScrollTop = inventoryScrollTopRef.current + (inventoryScrollVersion * 0);
   const inventoryVisibleStart = Math.max(0, Math.floor(inventoryScrollTop / inventoryRowHeight) - inventoryOverscan);
   const inventoryVisibleCount = Math.max(1, Math.ceil((inventoryViewportHeight || inventoryRowHeight) / inventoryRowHeight) + inventoryOverscan * 2);
-  const inventoryVisibleRows  = useMemo(() => inventoryPageRows.slice(inventoryVisibleStart, inventoryVisibleStart + inventoryVisibleCount), [inventoryPageRows, inventoryVisibleCount, inventoryVisibleStart]);
-  const inventoryVisibleEnd   = inventoryVisibleStart + inventoryVisibleRows.length;
-  const inventoryTopSpacer    = inventoryVisibleStart * inventoryRowHeight;
+  const inventoryVisibleRows = useMemo(() => inventoryPageRows.slice(inventoryVisibleStart, inventoryVisibleStart + inventoryVisibleCount), [inventoryPageRows, inventoryVisibleCount, inventoryVisibleStart]);
+  const inventoryVisibleEnd = inventoryVisibleStart + inventoryVisibleRows.length;
+  const inventoryTopSpacer = inventoryVisibleStart * inventoryRowHeight;
   const inventoryBottomSpacer = Math.max(0, (inventoryPageRows.length - inventoryVisibleEnd) * inventoryRowHeight);
 
   useEffect(() => {
@@ -595,6 +596,16 @@ export default function App() {
   const backupIsBusy = backupProgress?.status === 'running';
 
   // ── Render ────────────────────────────────────────────────────────────────
+  if (window.location.hash === '#used-purchase') {
+    return (
+      <div className="app-shell bypass-main">
+        <Suspense fallback={<div className="panel-loading">Loading used purchase system…</div>}>
+          <UsedPurchaseModule />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <>
       {showUpdatePrompt && updateInfo && (
@@ -634,13 +645,13 @@ export default function App() {
           <div className="topbar-brand">
             <div className="brand-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <rect x="2" y="3" width="2.5" height="18" rx="0.5" fill="currentColor"/>
-                <rect x="5.5" y="3" width="1" height="18" rx="0.5" fill="currentColor"/>
-                <rect x="7.5" y="3" width="2" height="18" rx="0.5" fill="currentColor"/>
-                <rect x="10.5" y="3" width="1" height="18" rx="0.5" fill="currentColor"/>
-                <rect x="12.5" y="3" width="3" height="18" rx="0.5" fill="currentColor"/>
-                <rect x="16.5" y="3" width="1" height="18" rx="0.5" fill="currentColor"/>
-                <rect x="18.5" y="3" width="3" height="18" rx="0.5" fill="currentColor"/>
+                <rect x="2" y="3" width="2.5" height="18" rx="0.5" fill="currentColor" />
+                <rect x="5.5" y="3" width="1" height="18" rx="0.5" fill="currentColor" />
+                <rect x="7.5" y="3" width="2" height="18" rx="0.5" fill="currentColor" />
+                <rect x="10.5" y="3" width="1" height="18" rx="0.5" fill="currentColor" />
+                <rect x="12.5" y="3" width="3" height="18" rx="0.5" fill="currentColor" />
+                <rect x="16.5" y="3" width="1" height="18" rx="0.5" fill="currentColor" />
+                <rect x="18.5" y="3" width="3" height="18" rx="0.5" fill="currentColor" />
               </svg>
             </div>
             <span className="brand-name">ScanVault</span>
@@ -755,6 +766,7 @@ export default function App() {
                 <button className={`tab ${activeTab === 'data' ? 'tab-on' : ''}`} onClick={() => setActiveTab('data')}><IconTable /> Inventory</button>
                 <button className={`tab ${activeTab === 'barcode' ? 'tab-on' : ''}`} onClick={() => setActiveTab('barcode')}><IconBarcode /> Barcode Creator</button>
                 <button className={`tab ${activeTab === 'billing' ? 'tab-on' : ''}`} onClick={() => setActiveTab('billing')}><IconPrinter /> Billing</button>
+                <button className={`tab ${activeTab === 'returns' ? 'tab-on' : ''}`} onClick={() => setActiveTab('returns')}><IconAlert /> Returns</button>
                 <button className={`tab ${activeTab === 'outofstock' ? 'tab-on' : ''}`} onClick={() => setActiveTab('outofstock')} style={{ position: 'relative' }}>
                   <IconAlert /> Out of Stock
                   {zeroQtyRows.length > 0 && <span className="tab-badge">{zeroQtyRows.length}</span>}
@@ -777,6 +789,10 @@ export default function App() {
             {activeTab === 'billing' ? (
               <Suspense fallback={<div className="panel-loading">Loading billing…</div>}>
                 <BillingModule />
+              </Suspense>
+            ) : activeTab === 'returns' ? (
+              <Suspense fallback={<div className="panel-loading">Loading returns…</div>}>
+                <BillingModule isReturnsOnly={true} />
               </Suspense>
             ) : activeTab === 'barcode' ? (
               <Suspense fallback={<div className="panel-loading">Loading barcode tools…</div>}>
@@ -808,7 +824,7 @@ export default function App() {
                 ) : rows.length === 0 ? (
                   <div className="empty-state">
                     <div className="empty-art">
-                      {[3,7,11,13,17,19,22,26,29,31,35,38,41].map((x, i) => (
+                      {[3, 7, 11, 13, 17, 19, 22, 26, 29, 31, 35, 38, 41].map((x, i) => (
                         <div key={i} className="empty-bar" style={{ left: x, height: 40 + (i % 4) * 12, opacity: 0.12 + (i % 3) * 0.1 }}></div>
                       ))}
                     </div>
@@ -911,6 +927,16 @@ export default function App() {
             ) : (
               /* Settings Panel */
               <div className="settings-panel">
+                <div className="settings-block">
+                  <h3 className="settings-h">Used Purchase System</h3>
+                  <p className="settings-p">
+                    Open a dedicated, standalone window to handle purchasing used items from customers or suppliers.
+                    This locks the interface to purchasing and will hide the main application to avoid confusion while active.
+                  </p>
+                  <button className="btn-accent" onClick={() => window.electronAPI?.openUsedPurchaseWindow?.()}>
+                    📦 Open Used Purchase Window
+                  </button>
+                </div>
 
                 <div className="settings-block">
                   <h3 className="settings-h">CSV Export</h3>
@@ -1045,13 +1071,13 @@ function InfoCard({ icon, title, body }) {
 }
 
 // Icons
-const IconDownload = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
-const IconRefresh = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 106 6.51L1 11m23 9l-5-5"/></svg>;
-const IconFile = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
-const IconEnter = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 01-4 4H4"/></svg>;
-const IconTable = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>;
-const IconSettings = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>;
-const IconSearch = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
-const IconBarcode = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="2" height="16" rx="0.5"/><rect x="5" y="4" width="1" height="16" rx="0.5"/><rect x="7" y="4" width="2" height="16" rx="0.5"/><rect x="11" y="4" width="1" height="16" rx="0.5"/><rect x="13" y="4" width="3" height="16" rx="0.5"/><rect x="17" y="4" width="1" height="16" rx="0.5"/><rect x="19" y="4" width="3" height="16" rx="0.5"/></svg>;
-const IconPrinter = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>;
-const IconAlert = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+const IconDownload = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
+const IconRefresh = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15A9 9 0 106 6.51L1 11m23 9l-5-5" /></svg>;
+const IconFile = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>;
+const IconEnter = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 10 4 15 9 20" /><path d="M20 4v7a4 4 0 01-4 4H4" /></svg>;
+const IconTable = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" /></svg>;
+const IconSettings = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>;
+const IconSearch = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>;
+const IconBarcode = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="2" height="16" rx="0.5" /><rect x="5" y="4" width="1" height="16" rx="0.5" /><rect x="7" y="4" width="2" height="16" rx="0.5" /><rect x="11" y="4" width="1" height="16" rx="0.5" /><rect x="13" y="4" width="3" height="16" rx="0.5" /><rect x="17" y="4" width="1" height="16" rx="0.5" /><rect x="19" y="4" width="3" height="16" rx="0.5" /></svg>;
+const IconPrinter = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>;
+const IconAlert = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>;

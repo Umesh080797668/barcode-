@@ -11,7 +11,7 @@ const generateInvoiceNumber = () => {
   return `INV-${year}-${month}${day}-${suffix}`;
 };
 
-export default function BillingModule() {
+export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWindow = false }) {
   const [view, setView] = useState('new'); // 'new' | 'history' | 'settings'
   const [products, setProducts] = useState([]);
   const [cartItems, setCartItems] = useState([]);
@@ -20,7 +20,9 @@ export default function BillingModule() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [cashier, setCashier] = useState('');
   const [paidCash, setPaidCash] = useState('');
-  const [transactionMode, setTransactionMode] = useState('sale');
+  const [transactionMode, setTransactionMode] = useState(
+    isUsedPurchaseWindow ? 'used_purchase' : isReturnsOnly ? 'supplier_return' : 'sale'
+  );
   const [returnCompany, setReturnCompany] = useState('');
   const [returnReason, setReturnReason] = useState('');
   const [invoices, setInvoices] = useState([]);
@@ -62,7 +64,7 @@ export default function BillingModule() {
   }, [isElectron, refreshProducts]);
 
   // Warranty options
-  const WARRANTY_OPTIONS = ['No warranty', '7 days','1 month','3 months','6 months','1 year','2 years','3 years','5 years'];
+  const WARRANTY_OPTIONS = ['No warranty', '7 days', '1 month', '3 months', '6 months', '1 year', '2 years', '3 years', '5 years'];
 
   const loadInvoices = useCallback(() => {
     if (!isElectron) return;
@@ -171,7 +173,7 @@ export default function BillingModule() {
           const exists = prev.some(p => barcodeText(p.barcode) === bc);
           return exists ? prev : [direct.product, ...prev];
         });
-          productLookupRef.current.set(bc, direct.product);
+        productLookupRef.current.set(bc, direct.product);
         return prod;
       }
     }
@@ -320,17 +322,17 @@ export default function BillingModule() {
       const viewWidth = Math.max(width, 120);
       return `<svg class="barcode-svg" viewBox="0 0 ${viewWidth} 44" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${bars.join('')}</svg>`;
     };
-    const shopAddr  = shop.address || '';
-    const shopPhone = shop.phone   || '';
+    const shopAddr = shop.address || '';
+    const shopPhone = shop.phone || '';
 
     const invoiceDate = invoice.created_at
       ? new Date(invoice.created_at).toLocaleString('en-GB').replace(',', '')
       : new Date().toLocaleString('en-GB').replace(',', '');
 
-    const invoiceNo  = invoice.invoice_no || '';
-    const cashier    = invoice.cashier || shop.cashier || '';
-    const customer   = invoice.customer_name || '';
-    const custPhone  = invoice.customer_phone || '';
+    const invoiceNo = invoice.invoice_no || '';
+    const cashier = invoice.cashier || shop.cashier || '';
+    const customer = invoice.customer_name || '';
+    const custPhone = invoice.customer_phone || '';
 
     const balVal = parseFloat(invoice.balance || 0);
     const balanceDisplay = balVal > 0
@@ -418,7 +420,7 @@ export default function BillingModule() {
 
   <div class="receipt-header">
     ${shopName ? `<div class="shop-name">${shopName}</div>` : ''}
-    ${shopAddr  ? `<div class="shop-address">${shopAddr}</div>`  : ''}
+    ${shopAddr ? `<div class="shop-address">${shopAddr}</div>` : ''}
     ${shopPhone ? `<div class="shop-phone">Tel: ${shopPhone}</div>` : ''}
   </div>
 
@@ -428,7 +430,7 @@ export default function BillingModule() {
 
   <div style="font-size:9.5px; text-align:center; margin-top:2px; font-weight:500;">Date ${invoiceDate}</div>
   <div style="font-size:9.5px; text-align:center; font-weight:500;"># ${invoiceNo}</div>
-  ${cashier  ? `<div style="font-size:9.5px; text-align:center; font-weight:500;">Cashier : ${cashier}</div>` : ''}
+  ${cashier ? `<div style="font-size:9.5px; text-align:center; font-weight:500;">Cashier : ${cashier}</div>` : ''}
   ${customer ? `<div style="font-size:9.5px; text-align:center; font-weight:500;">Customer : ${customer}${custPhone ? '  ' + custPhone : ''}</div>` : ''}
 
   <div class="divider"></div>
@@ -532,7 +534,7 @@ export default function BillingModule() {
         const invoice = data.invoice;
         const printAfter = data.printAfter;
         const isReturn = invoice?.status === 'supplier_return' || invoice?.status === 'customer_return' ||
-             invoice?.transaction_type === 'supplier_return' || invoice?.transaction_type === 'customer_return';
+          invoice?.transaction_type === 'supplier_return' || invoice?.transaction_type === 'customer_return';
         // perform save now
         setStatusMsg('💾 Saving...');
         const saveResult = await window.electronAPI.saveInvoice(invoice);
@@ -650,7 +652,7 @@ export default function BillingModule() {
                   <div className="product-card-meta">
                     <span className="product-card-price">Rs. {fmt(p.price)}</span>
                     <span className={`product-card-stock ${p.quantity < 1 ? 'out' : ''}`}>
-                      Stock: {p.quantity}
+                      {p.quantity < 1 ? 'Out of Stock' : `Stock: ${p.quantity}`}
                     </span>
                   </div>
                 </div>
@@ -665,32 +667,41 @@ export default function BillingModule() {
           <div className="billing-cart">
             <div className="billing-section-title">Bill</div>
 
-            <div className="bill-mode-toggle" style={{ marginBottom: 8 }}>
-              <button
-                className={`billing-nav-btn ${transactionMode === 'sale' ? 'active' : ''}`}
-                onClick={() => setTransactionMode('sale')}
-                type="button"
-              >
-                🧾 Sale
-              </button>
-              <button
-                className={`billing-nav-btn ${transactionMode === 'customer_return' ? 'active' : ''}`}
-                onClick={() => setTransactionMode('customer_return')}
-                type="button"
-              >
-                ↩️ Customer Return
-              </button>
-              <button
-                className={`billing-nav-btn ${transactionMode === 'supplier_return' ? 'active' : ''}`}
-                onClick={() => setTransactionMode('supplier_return')}
-                type="button"
-              >
-                ↩️ Supplier Return
-              </button>
-            </div>
+            {(!isReturnsOnly && !isUsedPurchaseWindow) && (
+              <div className="bill-mode-toggle" style={{ marginBottom: 8 }}>
+                <button
+                  className={`billing-nav-btn ${transactionMode === 'sale' ? 'active' : ''}`}
+                  onClick={() => setTransactionMode('sale')}
+                  type="button"
+                >
+                  🧾 Sale
+                </button>
+                <button
+                  className={`billing-nav-btn ${transactionMode === 'customer_return' ? 'active' : ''}`}
+                  onClick={() => setTransactionMode('customer_return')}
+                  type="button"
+                >
+                  ↩️ Customer Return
+                </button>
+                <button
+                  className={`billing-nav-btn ${transactionMode === 'supplier_return' ? 'active' : ''}`}
+                  onClick={() => setTransactionMode('supplier_return')}
+                  type="button"
+                >
+                  ↩️ Supplier Return
+                </button>
+              </div>
+            )}
 
             {/* Customer */}
-            {isSupplierReturn ? (
+            {isUsedPurchaseWindow ? (
+              <>
+                <input className="bill-input" placeholder="Seller / Customer name"
+                  value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                <input className="bill-input" placeholder="Seller contact number"
+                  value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} style={{ marginBottom: 8 }} />
+              </>
+            ) : isSupplierReturn ? (
               <>
                 <input className="bill-input" placeholder="Company / Supplier name"
                   value={returnCompany} onChange={e => setReturnCompany(e.target.value)} />
@@ -846,8 +857,6 @@ export default function BillingModule() {
           </div>
         </div>
       )}
-
-      {/* printable preview opens in a new window */}
 
       {/* ── HISTORY ──────────────────────────────────────────────────────── */}
       {view === 'history' && (

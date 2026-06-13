@@ -266,6 +266,46 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('app:getVersion', async () => ({ success: true, version: app.getVersion() }));
 
+// ── Window Management ────────────────────────────────────────────────────
+
+ipcMain.handle('window:openUsedPurchase', async () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide();
+  }
+
+  const appIconPath = path.join(app.getAppPath(), 'build', 'icon.png');
+  const upWindow = new BrowserWindow({
+    width: 1024,
+    height: 768,
+    minWidth: 900,
+    minHeight: 600,
+    title: 'ScanVault - Used Purchase',
+    backgroundColor: '#0d0e11',
+    icon: appIconPath,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  // Remove standard menu for standard "kiosk-like" behavior
+  upWindow.setMenu(null);
+
+  upWindow.on('closed', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+    }
+  });
+
+  if (app.isPackaged) {
+    upWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: 'used-purchase' });
+  } else {
+    upWindow.loadURL('http://localhost:5173/#used-purchase');
+  }
+  return { success: true };
+});
+
 // ── CSV Export ─────────────────────────────────────────────────────────────
 
 /** Return the saved export path (or null) */
