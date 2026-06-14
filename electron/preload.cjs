@@ -67,4 +67,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSupplierReturn: (data) => ipcRenderer.invoke('returns:save', data),
   getSupplierReturns: (limit) => ipcRenderer.invoke('returns:getAll', limit),
   deleteSupplierReturn: (id) => ipcRenderer.invoke('returns:delete', id),
+  receiveSupplierReplacement: (id, data) => ipcRenderer.invoke('returns:receiveReplacement', { id, data }),
+  updateInvoice: (invoiceNo, invoice) => ipcRenderer.invoke('invoice:update', { invoiceNo, invoice }),
 });

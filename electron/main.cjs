@@ -542,6 +542,16 @@ ipcMain.handle('returns:delete', async (_, id) => {
   catch (e) { return { success: false, error: e.message }; }
 });
 
+ipcMain.handle('returns:receiveReplacement', async (_, { id, data }) => {
+  try { return await barcodeDB.receiveSupplierReplacement(id, data); }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('invoice:update', async (_, { invoiceNo, invoice }) => {
+  try { return await barcodeDB.updateInvoice(invoiceNo, invoice); }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
 // ── Printer IPC ────────────────────────────────────────────────────────────
 
 ipcMain.handle('printer:list', async () => {

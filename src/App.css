@@ -3342,3 +3342,4 @@ button {
   color: var(--red);
   border-color: rgba(239, 68, 68, 0.3);
 }
+.sr-type-badge--pend { background: #fff3cd; color: #856404; }

@@ -37,7 +37,7 @@ export default function SupplierReturnsModule() {
     const [returnedBarcode, setReturnedBarcode] = useState('');
     const [returnedProduct, setReturnedProduct] = useState(null);
     const [returnedQty, setReturnedQty] = useState(1);
-    const [returnType, setReturnType] = useState('no_replacement'); // 'no_replacement' | 'replaced'
+    const [returnType, setReturnType] = useState('no_replacement'); // 'no_replacement' | 'replaced' | 'pending_replacement'
     const [replacementBarcode, setReplacementBarcode] = useState('');
     const [replacementProduct, setReplacementProduct] = useState(null);
     const [replacementQty, setReplacementQty] = useState(1);
@@ -53,6 +53,14 @@ export default function SupplierReturnsModule() {
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
 
+    // Receive-replacement modal state
+    const [receiveModal, setReceiveModal] = useState(null); // { id, returned_barcode, returned_name }
+    const [rcvBarcode, setRcvBarcode] = useState('');
+    const [rcvProduct, setRcvProduct] = useState(null);
+    const [rcvQty, setRcvQty] = useState(1);
+    const [rcvSearching, setRcvSearching] = useState(false);
+    const [rcvSubmitting, setRcvSubmitting] = useState(false);
+
     const msgTimer = useRef(null);
 
     const showMsg = useCallback((type, msg) => {
@@ -66,12 +74,31 @@ export default function SupplierReturnsModule() {
     }, []);
 
     // ── History ────────────────────────────────────────────────────────────────
+    const [productStockMap, setProductStockMap] = useState({}); // barcode -> current quantity
+
     const loadHistory = useCallback(async () => {
         if (NOOP_API) return;
         setLoadingHistory(true);
         try {
             const r = await window.electronAPI.getSupplierReturns();
-            if (r?.success) setHistory(r.returns || []);
+            if (r?.success) {
+                const returns = r.returns || [];
+                setHistory(returns);
+                // Fetch current stock for all unique returned barcodes
+                const uniqueBarcodes = [...new Set(returns.map(row => row.returned_barcode).filter(Boolean))];
+                const stockEntries = await Promise.all(
+                    uniqueBarcodes.map(async (bc) => {
+                        try {
+                            const res = await window.electronAPI.getProduct(bc);
+const prod = res?.product ?? res;
+return [bc, prod ? Number(prod.quantity ?? 0) : -1];
+                        } catch {
+                            return [bc, 0];
+                        }
+                    })
+                );
+                setProductStockMap(Object.fromEntries(stockEntries));
+            }
         } finally {
             setLoadingHistory(false);
         }
@@ -119,6 +146,18 @@ export default function SupplierReturnsModule() {
         return () => clearTimeout(repDebounce.current);
     }, [replacementBarcode, returnType, lookupProduct]);
 
+    // Debounce receive-replacement barcode lookup
+    const rcvDebounce = useRef(null);
+    useEffect(() => {
+        if (!receiveModal) { setRcvProduct(null); return; }
+        clearTimeout(rcvDebounce.current);
+        if (!rcvBarcode.trim()) { setRcvProduct(null); return; }
+        rcvDebounce.current = setTimeout(() => {
+            void lookupProduct(rcvBarcode, setRcvProduct, setRcvSearching);
+        }, 400);
+        return () => clearTimeout(rcvDebounce.current);
+    }, [rcvBarcode, receiveModal, lookupProduct]);
+
     // ── Submit ──────────────────────────────────────────────────────────────────
     const handleSubmit = useCallback(async () => {
         setConfirmOpen(false);
@@ -129,6 +168,7 @@ export default function SupplierReturnsModule() {
         if (returnType === 'replaced' && !replacementBarcode.trim()) {
             showMsg('error', 'Please enter the replacement product barcode.'); return;
         }
+        // pending_replacement: no replacement barcode needed now
 
         setSubmitting(true);
         try {
@@ -143,6 +183,7 @@ export default function SupplierReturnsModule() {
                 replacement_qty: returnType === 'replaced' ? replacementQty : 0,
                 notes: notes.trim() || null,
             };
+            // pending_replacement: stock decreases now, replacement arrives later
 
             let result;
             if (NOOP_API) {
@@ -176,6 +217,43 @@ export default function SupplierReturnsModule() {
         replacementBarcode, replacementProduct, replacementQty, notes,
         loadHistory, showMsg,
     ]);
+
+    // ── Receive replacement for a pending return ─────────────────────────────
+    const handleReceiveReplacement = useCallback(async () => {
+        if (!receiveModal) return;
+        if (!rcvBarcode.trim()) { showMsg('error', 'Please enter the replacement barcode.'); return; }
+        setRcvSubmitting(true);
+        try {
+            const data = {
+                replacement_barcode: rcvBarcode.trim(),
+                replacement_name: rcvProduct?.name || null,
+                replacement_modal: rcvProduct?.modal || null,
+                replacement_qty: rcvQty,
+            };
+            let result;
+            if (NOOP_API) {
+                result = { success: true };
+                setHistory(prev => prev.map(r => r.id === receiveModal.id
+                    ? { ...r, return_type: 'replaced', replacement_barcode: rcvBarcode.trim(), replacement_qty: rcvQty }
+                    : r));
+            } else {
+                result = await window.electronAPI.receiveSupplierReplacement(receiveModal.id, data);
+            }
+            if (result?.success) {
+                showMsg('success', 'Replacement received and stock updated.');
+                setReceiveModal(null);
+                setRcvBarcode('');
+                setRcvProduct(null);
+                setRcvQty(1);
+                await loadHistory();
+                window.dispatchEvent(new Event('products:changed'));
+            } else {
+                showMsg('error', result?.error || 'Failed to record replacement.');
+            }
+        } finally {
+            setRcvSubmitting(false);
+        }
+    }, [receiveModal, rcvBarcode, rcvProduct, rcvQty, loadHistory, showMsg]);
 
     // ── Delete history item ────────────────────────────────────────────────────
     const handleDelete = useCallback(async (id) => {
@@ -264,6 +342,15 @@ export default function SupplierReturnsModule() {
                             <span className="sr-type-title">Replaced (Same Model)</span>
                             <span className="sr-type-sub">Stock down + replacement up</span>
                         </button>
+                        <button
+                            className={`sr-type-btn${returnType === 'pending_replacement' ? ' sr-type-btn--active' : ''}`}
+                            onClick={() => setReturnType('pending_replacement')}
+                            type="button"
+                        >
+                            <span className="sr-type-icon">⏳</span>
+                            <span className="sr-type-title">Pending Replacement</span>
+                            <span className="sr-type-sub">Stock down now — receive later</span>
+                        </button>
                     </div>
                 </div>
 
@@ -318,6 +405,8 @@ export default function SupplierReturnsModule() {
                             <strong>Confirm:</strong>{' '}
                             {returnType === 'no_replacement'
                                 ? `Decrease "${returnedBarcode}" by ${returnedQty}.`
+                                : returnType === 'pending_replacement'
+                                ? `Decrease "${returnedBarcode}" by ${returnedQty}. Replacement to be recorded later.`
                                 : `Decrease "${returnedBarcode}" by ${returnedQty} and increase "${replacementBarcode}" by ${replacementQty}.`}
                         </div>
                         <div className="sr-confirm-actions">
@@ -374,13 +463,13 @@ export default function SupplierReturnsModule() {
                             </thead>
                             <tbody>
                                 {history.map((row, i) => {
-                                    const isOos = row.return_type === 'no_replacement';
+                                    const isOos = (productStockMap[row.returned_barcode] ?? -1) === 0;
                                     return (
                                         <tr key={row.id} className="sr-table-row">
                                             <td className="td-num">{i + 1}</td>
                                             <td>
-                                                <span className={`sr-type-badge ${row.return_type === 'replaced' ? 'sr-type-badge--rep' : 'sr-type-badge--no'}`}>
-                                                    {row.return_type === 'replaced' ? '🔄 Replaced' : '📦 No Repl.'}
+                                                <span className={`sr-type-badge ${row.return_type === 'replaced' ? 'sr-type-badge--rep' : row.return_type === 'pending_replacement' ? 'sr-type-badge--pend' : 'sr-type-badge--no'}`}>
+                                                    {row.return_type === 'replaced' ? '🔄 Replaced' : row.return_type === 'pending_replacement' ? '⏳ Pending' : '📦 No Repl.'}
                                                 </span>
                                             </td>
                                             <td>
@@ -406,9 +495,29 @@ export default function SupplierReturnsModule() {
                                             </td>
                                             <td className="sr-muted">{row.notes || '—'}</td>
                                             <td style={{ fontSize: 11, color: 'var(--muted)' }}>
-                                                {row.created_at ? new Date(row.created_at).toLocaleString() : '—'}
+                                                {row.created_at ? (() => {
+                                                    // SQLite CURRENT_TIMESTAMP stores UTC without 'Z', add it for correct local conversion
+                                                    const raw = row.created_at;
+                                                    const iso = /Z|[+-]\d{2}:\d{2}$/.test(raw) ? raw : raw.replace(' ', 'T') + 'Z';
+                                                    return new Date(iso).toLocaleString();
+                                                })() : '—'}
                                             </td>
-                                            <td>
+                                            <td style={{ whiteSpace: 'nowrap' }}>
+                                                {row.return_type === 'pending_replacement' && (
+                                                    <button
+                                                        className="btn-ghost btn-sm"
+                                                        style={{ marginRight: 4, fontSize: 11 }}
+                                                        title="Record replacement received"
+                                                        onClick={() => {
+                                                            setReceiveModal({ id: row.id, returned_barcode: row.returned_barcode, returned_name: row.returned_name });
+                                                            setRcvBarcode('');
+                                                            setRcvProduct(null);
+                                                            setRcvQty(1);
+                                                        }}
+                                                    >
+                                                        📦 Receive
+                                                    </button>
+                                                )}
                                                 <button
                                                     className="sr-del-btn"
                                                     title="Delete record (stock NOT reversed)"
@@ -425,6 +534,56 @@ export default function SupplierReturnsModule() {
                     </div>
                 )}
             </div>
+
+            {/* ── Receive Replacement Modal ── */}
+            {receiveModal && (
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 999,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                    <div className="sr-form-card" style={{ maxWidth: 420, width: '100%', margin: 0 }}>
+                        <h3 className="sr-form-title">📦 Receive Replacement</h3>
+                        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+                            Original return: <strong>{receiveModal.returned_name || receiveModal.returned_barcode}</strong>
+                        </p>
+                        <div className="sr-field-group">
+                            <label className="sr-label">Replacement Barcode</label>
+                            <div className="sr-input-row">
+                                <input
+                                    className="sr-input"
+                                    placeholder="Scan or type replacement barcode…"
+                                    value={rcvBarcode}
+                                    onChange={e => setRcvBarcode(e.target.value)}
+                                    autoFocus
+                                />
+                                {rcvSearching && <span className="sr-spinner" />}
+                            </div>
+                            {rcvBarcode && !rcvProduct && !rcvSearching && (
+                                <div className="sr-field-hint">Not found — a new product row will be created.</div>
+                            )}
+                            <ProductCard product={rcvProduct} label="Replacement Item" />
+                        </div>
+                        <div className="sr-field-group sr-field-group--inline">
+                            <label className="sr-label">Quantity Received</label>
+                            <input
+                                className="sr-input sr-input--num"
+                                type="number"
+                                min={1}
+                                value={rcvQty}
+                                onChange={e => setRcvQty(Math.max(1, Number(e.target.value) || 1))}
+                            />
+                        </div>
+                        <div className="sr-confirm-actions" style={{ marginTop: 12 }}>
+                            <button className="btn-accent" onClick={handleReceiveReplacement} disabled={rcvSubmitting || !rcvBarcode.trim()}>
+                                {rcvSubmitting ? 'Processing…' : '✔ Confirm Receipt'}
+                            </button>
+                            <button className="btn-ghost" onClick={() => setReceiveModal(null)} disabled={rcvSubmitting}>
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -1097,7 +1097,8 @@ class BarcodeDB {
     const returnedBarcode = String(data.returned_barcode || '').trim();
     if (!returnedBarcode) return { success: false, error: 'Returned barcode is required' };
     const returnedQty = Math.max(1, Number(data.returned_qty) || 1);
-    const returnType = data.return_type === 'replaced' ? 'replaced' : 'no_replacement';
+    const VALID_TYPES = ['no_replacement', 'replaced', 'pending_replacement'];
+    const returnType = VALID_TYPES.includes(data.return_type) ? data.return_type : 'no_replacement';
     const replacementBarcode = returnType === 'replaced' ? String(data.replacement_barcode || '').trim() : null;
     const replacementQty = returnType === 'replaced' ? Math.max(1, Number(data.replacement_qty) || 1) : 0;
 
@@ -1194,6 +1195,174 @@ class BarcodeDB {
     stmt.free();
     this._scheduleSaveDisk();
     return { success: true };
+  }
+
+  // Receive replacement for a pending return — updates stock and marks return as 'replaced'
+  async receiveSupplierReplacement(id, data) {
+    await this._ensureReady();
+    if (!this.db) throw new Error('Database not initialized');
+
+    const replacementBarcode = String(data.replacement_barcode || '').trim();
+    if (!replacementBarcode) return { success: false, error: 'Replacement barcode is required' };
+    const replacementQty = Math.max(1, Number(data.replacement_qty) || 1);
+
+    // Fetch the original return record
+    const selStmt = this.db.prepare('SELECT * FROM supplier_returns WHERE id = ?');
+    selStmt.bind([id]);
+    let returnRecord = null;
+    if (selStmt.step()) returnRecord = selStmt.getAsObject();
+    selStmt.free();
+    if (!returnRecord) return { success: false, error: 'Return record not found' };
+    if (returnRecord.return_type !== 'pending_replacement') {
+      return { success: false, error: 'This return is not pending a replacement' };
+    }
+
+    this.db.run('BEGIN TRANSACTION');
+    try {
+      // Increase stock for replacement product
+      const repProd = await this.getProduct(replacementBarcode);
+      if (repProd) {
+        const newQty = (repProd.quantity || 0) + replacementQty;
+        const updStmt = this.db.prepare(
+          'UPDATE products SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE barcode = ?'
+        );
+        updStmt.run([newQty, replacementBarcode]);
+        updStmt.free();
+      } else {
+        const insStmt = this.db.prepare(
+          "INSERT INTO products (barcode, name, quantity, price, scan_mode, modal) VALUES (?, ?, ?, 0, 'inventory_only', ?)"
+        );
+        insStmt.run([
+          replacementBarcode,
+          data.replacement_name || replacementBarcode,
+          replacementQty,
+          data.replacement_modal || null,
+        ]);
+        insStmt.free();
+      }
+
+      // Update the return record
+      const updReturn = this.db.prepare(
+        "UPDATE supplier_returns SET return_type = 'replaced', replacement_barcode = ?, replacement_name = ?, replacement_qty = ? WHERE id = ?"
+      );
+      updReturn.run([
+        replacementBarcode,
+        data.replacement_name || repProd?.name || replacementBarcode,
+        replacementQty,
+        id,
+      ]);
+      updReturn.free();
+
+      this.db.run('COMMIT');
+      this._scheduleSaveDisk();
+      return { success: true };
+    } catch (err) {
+      this.db.run('ROLLBACK');
+      return { success: false, error: err.message };
+    }
+  }
+
+  // Update an existing saved invoice (add/remove items, update totals)
+  async updateInvoice(invoiceNo, invoice) {
+    await this._ensureInvoiceTables();
+    if (!invoiceNo) return { success: false, error: 'Invoice number required' };
+
+    // Fetch existing invoice to reverse stock changes
+    const existing = await this.getInvoice(invoiceNo);
+    if (!existing) return { success: false, error: 'Invoice not found' };
+
+    this.db.run('BEGIN TRANSACTION');
+    try {
+      const isSale = !['customer_return', 'supplier_return', 'used_purchase'].includes(existing.transaction_type);
+
+      // Reverse old stock changes
+      for (const item of (existing.items || [])) {
+        if (item.barcode) {
+          if (!isSale) {
+            // was adding stock (return/purchase) → subtract it back
+            const s = this.db.prepare('UPDATE products SET quantity = MAX(0, quantity - ?) WHERE barcode = ?');
+            s.run([item.quantity || 1, item.barcode]);
+            s.free();
+          } else {
+            // was reducing stock (sale) → add it back
+            const s = this.db.prepare('UPDATE products SET quantity = quantity + ? WHERE barcode = ?');
+            s.run([item.quantity || 1, item.barcode]);
+            s.free();
+          }
+        }
+      }
+
+      // Delete old invoice items
+      const delItems = this.db.prepare('SELECT id FROM invoices WHERE invoice_no = ?');
+      delItems.bind([invoiceNo]);
+      let invoiceId = null;
+      if (delItems.step()) invoiceId = delItems.getAsObject().id;
+      delItems.free();
+
+      if (!invoiceId) { this.db.run('ROLLBACK'); return { success: false, error: 'Invoice not found' }; }
+
+      const delOldItems = this.db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?');
+      delOldItems.run([invoiceId]);
+      delOldItems.free();
+
+      // Update invoice header
+      const upd = this.db.prepare(
+        'UPDATE invoices SET customer_name=?, customer_phone=?, cashier=?, subtotal=?, discount=?, total=?, paid_cash=?, balance=?, status=?, return_reason=? WHERE invoice_no=?'
+      );
+      upd.run([
+        invoice.customer_name || existing.customer_name || '',
+        invoice.customer_phone || existing.customer_phone || '',
+        invoice.cashier || existing.cashier || '',
+        invoice.subtotal || 0,
+        invoice.discount || 0,
+        invoice.total || 0,
+        invoice.paid_cash || 0,
+        invoice.balance || 0,
+        invoice.status || existing.status || 'unpaid',
+        invoice.return_reason || existing.return_reason || '',
+        invoiceNo,
+      ]);
+      upd.free();
+
+      // Insert new items and apply new stock changes
+      for (const item of (invoice.items || [])) {
+        const iStmt = this.db.prepare(
+          'INSERT INTO invoice_items (invoice_id, barcode, name, price, quantity, discount, net_price, total, warranty, remaining_warranty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        iStmt.run([
+          invoiceId,
+          item.barcode || '',
+          item.name || '',
+          item.price || 0,
+          item.quantity || 1,
+          item.discount || 0,
+          item.net_price || item.price || 0,
+          item.total || 0,
+          item.warranty || '',
+          item.remaining_warranty || '',
+        ]);
+        iStmt.free();
+
+        if (item.barcode) {
+          if (!isSale) {
+            const s = this.db.prepare('UPDATE products SET quantity = quantity + ? WHERE barcode = ?');
+            s.run([item.quantity || 1, item.barcode]);
+            s.free();
+          } else {
+            const s = this.db.prepare('UPDATE products SET quantity = MAX(0, quantity - ?) WHERE barcode = ?');
+            s.run([item.quantity || 1, item.barcode]);
+            s.free();
+          }
+        }
+      }
+
+      this.db.run('COMMIT');
+      this._saveDisk();
+      return { success: true, invoice_no: invoiceNo };
+    } catch (err) {
+      try { this.db.run('ROLLBACK'); } catch (_) { /* ignore */ }
+      return { success: false, error: err.message };
+    }
   }
 }
 

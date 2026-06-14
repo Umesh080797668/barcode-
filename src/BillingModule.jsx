@@ -26,6 +26,7 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
   const [returnCompany, setReturnCompany] = useState('');
   const [returnReason, setReturnReason] = useState('');
   const [invoices, setInvoices] = useState([]);
+  const [editingInvoiceNo, setEditingInvoiceNo] = useState(null); // invoice being edited
   // printable preview is opened in a new window; no modal state required
   const [shopConfig, setShopConfig] = useState({});
   const [printers, setPrinters] = useState([]);
@@ -139,14 +140,14 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
       const existing = prev.find(i => barcodeText(i.barcode) === productBarcode);
       if (existing) {
         return prev.map(i => barcodeText(i.barcode) === productBarcode
-          ? { ...i, quantity: i.quantity + 1, total: (i.quantity + 1) * i.net_price, warranty: transactionMode === 'supplier_return' ? '' : (i.warranty || product.warranty || '7 days') }
+          ? { ...i, quantity: i.quantity + 1, total: (i.quantity + 1) * i.net_price, warranty: transactionMode === 'supplier_return' ? '' : (i.warranty || product.warranty || 'No warranty') }
           : i
         );
       }
       return [...prev, {
         barcode: productBarcode,
         name: product.name,
-        warranty: transactionMode === 'supplier_return' ? '' : (product.warranty || '7 days'),
+        warranty: transactionMode === 'supplier_return' ? '' : (product.warranty || 'No warranty'),
         remaining_warranty: transactionMode === 'customer_return' ? (product.remaining_warranty || '') : '',
         price: product.price,
         discount: 0,
@@ -267,7 +268,7 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
     };
 
     // Open preview window for confirmation; when printing requested show thermal layout
-    openInvoicePreview(invoice, { forSave: true, printAfter, thermal: !!printAfter });
+    openInvoicePreview(invoice, { forSave: true, printAfter, thermal: !!printAfter, editInvoiceNo: editingInvoiceNo || null });
   };
 
   // Shared Oshini Mobile logo (base64) — same as print-handler
@@ -496,7 +497,7 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
       saveBtn.addEventListener('click', () => {
         try {
           window.opener.postMessage(
-            { action: 'saveInvoice', invoice: ${JSON.stringify(invoice)}, printAfter: ${options.printAfter ? 'true' : 'false'} },
+            { action: 'saveInvoice', invoice: ${JSON.stringify(invoice)}, printAfter: ${options.printAfter ? 'true' : 'false'}, editInvoiceNo: ${options.editInvoiceNo ? JSON.stringify(options.editInvoiceNo) : 'null'} },
             '*'
           );
           window.close();
@@ -537,7 +538,11 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
           invoice?.transaction_type === 'supplier_return' || invoice?.transaction_type === 'customer_return';
         // perform save now
         setStatusMsg('💾 Saving...');
-        const saveResult = await window.electronAPI.saveInvoice(invoice);
+        // If editing an existing invoice, update it; otherwise save as new
+        const editNo = data.editInvoiceNo || null;
+        const saveResult = editNo
+          ? await window.electronAPI.updateInvoice(editNo, invoice)
+          : await window.electronAPI.saveInvoice(invoice);
         if (!saveResult.success) {
           setStatusMsg('❌ Save failed: ' + saveResult.error);
           return;
@@ -545,9 +550,12 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
         invoice.invoice_no = saveResult.invoice_no;
         invoice.created_at = new Date().toISOString();
 
+        // Clear edit mode
+        setEditingInvoiceNo(null);
+
         // Notify inventory that stock has changed (DB update is handled by saveInvoice)
         window.dispatchEvent(new Event('products:changed'));
-        setStatusMsg(`✅ ${isReturn ? 'Supplier return saved' : 'Saved'}! Invoice: ` + saveResult.invoice_no);
+        setStatusMsg(`✅ ${isReturn ? 'Supplier return saved' : data.editInvoiceNo ? 'Updated' : 'Saved'}! Invoice: ` + saveResult.invoice_no);
 
         // After save, optionally print
         if (printAfter) {
@@ -596,6 +604,35 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
       window.removeEventListener('products:changed', onProductsChanged);
     };
   }, [addToCart, selectedPrinter, shopConfig, refreshProducts, isElectron, resolveScannedProduct]);
+
+  // Load a saved invoice into the cart for editing
+  const loadInvoiceForEdit = async (invoiceNo) => {
+    if (!isElectron) return;
+    const r = await window.electronAPI.getInvoice(invoiceNo);
+    if (!r.success) { setStatusMsg('❌ Invoice not found'); return; }
+    const inv = r.invoice;
+
+    // Populate cart with the saved items
+    const loadedItems = (inv.items || []).map(item => ({
+      barcode: item.barcode || '',
+      name: item.name || '',
+      price: item.price || 0,
+      discount: item.discount || 0,
+      net_price: item.net_price || item.price || 0,
+      quantity: item.quantity || 1,
+      total: item.total || 0,
+      warranty: item.warranty || '',
+      remaining_warranty: item.remaining_warranty || '',
+    }));
+    setCartItems(loadedItems);
+    setCustomerName(inv.customer_name || '');
+    setCustomerPhone(inv.customer_phone || '');
+    setCashier(inv.cashier || '');
+    setPaidCash(String(inv.paid_cash || ''));
+    setEditingInvoiceNo(invoiceNo);
+    setView('new');
+    setStatusMsg(`✏️ Editing invoice ${invoiceNo} — update items then save.`);
+  };
 
   const reprintInvoice = async (invoiceNo) => {
     const r = await window.electronAPI.getInvoice(invoiceNo);
@@ -760,7 +797,7 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
                         )}
                         {!isSupplierReturn && !isCustomerReturn && (
                           <td>
-                            <select className="bill-input" value={item.warranty || '7 days'}
+                            <select className="bill-input" value={item.warranty || 'No warranty'}
                               onChange={e => updateCartItem(item.barcode, 'warranty', e.target.value)}>
                               {WARRANTY_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
                             </select>
@@ -877,20 +914,34 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
               {invoices.map(inv => (
                 <tr key={inv.invoice_no}>
                   <td className="mono">{inv.invoice_no}</td>
-                  <td>{new Date(inv.created_at).toLocaleDateString()}</td>
+                  <td>{inv.created_at ? (() => {
+                    const raw = inv.created_at;
+                    const iso = /Z|[+-]\d{2}:\d{2}$/.test(raw) ? raw : raw.replace(' ', 'T') + 'Z';
+                    return new Date(iso).toLocaleDateString();
+                  })() : '—'}</td>
                   <td>{inv.transaction_type === 'supplier_return' ? 'Supplier Return' : 'Sale'}</td>
                   <td>{inv.customer_name || '—'}</td>
                   <td>Rs. {fmt(inv.total)}</td>
                   <td>
                     <span className={`inv-badge ${inv.status}`}>{inv.status}</span>
                   </td>
-                  <td>
-                    <button className="hist-btn" onClick={() => viewInvoice(inv.invoice_no)} style={{ marginRight: 8 }}>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="hist-btn" onClick={() => viewInvoice(inv.invoice_no)} style={{ marginRight: 4 }}>
                       👁️ View
                     </button>
-                    <button className="hist-btn" onClick={() => reprintInvoice(inv.invoice_no)}>
+                    <button className="hist-btn" onClick={() => reprintInvoice(inv.invoice_no)} style={{ marginRight: 4 }}>
                       🖨️ Reprint
                     </button>
+                    {inv.transaction_type !== 'supplier_return' && inv.transaction_type !== 'customer_return' && (
+                      <button
+                        className="hist-btn"
+                        style={{ background: 'var(--accent, #1a7f3c)', color: '#fff' }}
+                        title="Load invoice into cart to add more products"
+                        onClick={() => loadInvoiceForEdit(inv.invoice_no)}
+                      >
+                        ✏️ Add Items
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
