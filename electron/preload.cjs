@@ -45,6 +45,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Update ───────────────────────────────────────────────────────────────
   downloadAndInstallUpdate: (payload) => ipcRenderer.invoke('update:downloadAndInstall', payload),
+  onUpdateProgress: (callback) => {
+    const listener = (_, payload) => callback(payload);
+    ipcRenderer.on('update:progress', listener);
+    return () => ipcRenderer.removeListener('update:progress', listener);
+  },
 
   // ── Barcode / Product DB ──────────────────────────────────────────────────
   generateBarcode: () => ipcRenderer.invoke('barcode:generate'),
@@ -57,4 +62,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCustomFields: () => ipcRenderer.invoke('barcode:getCustomFields'),
   saveCustomField: (field) => ipcRenderer.invoke('barcode:saveCustomField', field),
   deleteCustomField: (id) => ipcRenderer.invoke('barcode:deleteCustomField', id),
+
+  // ── Supplier Returns ──────────────────────────────────────────────────────
+  saveSupplierReturn: (data) => ipcRenderer.invoke('returns:save', data),
+  getSupplierReturns: (limit) => ipcRenderer.invoke('returns:getAll', limit),
+  deleteSupplierReturn: (id) => ipcRenderer.invoke('returns:delete', id),
 });

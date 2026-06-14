@@ -525,6 +525,23 @@ ipcMain.handle('invoice:delete', async (_, invoiceNo) => {
   catch (e) { return { success: false, error: e.message }; }
 });
 
+// ── Supplier Returns IPC ───────────────────────────────────────────────────
+
+ipcMain.handle('returns:save', async (_, data) => {
+  try { return await barcodeDB.saveSupplierReturn(data); }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('returns:getAll', async (_, limit) => {
+  try { return { success: true, returns: await barcodeDB.getSupplierReturns(limit) }; }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('returns:delete', async (_, id) => {
+  try { return await barcodeDB.deleteSupplierReturn(id); }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
 // ── Printer IPC ────────────────────────────────────────────────────────────
 
 ipcMain.handle('printer:list', async () => {
@@ -555,7 +572,7 @@ ipcMain.handle('settings:saveShop', async (_, config) => {
 
 // ── Update IPC ─────────────────────────────────────────────────────────────
 
-ipcMain.handle('update:downloadAndInstall', async (_, { url, filename }) => {
+ipcMain.handle('update:downloadAndInstall', async (event, { url, filename }) => {
   try {
     if (!url) return { success: false, error: 'Missing update URL' };
     const updateDir = path.join(app.getPath('downloads'), 'ScanVault Updates');
@@ -567,7 +584,30 @@ ipcMain.handle('update:downloadAndInstall', async (_, { url, filename }) => {
     const targetPath = path.join(updateDir, resolvedName);
     const response = await fetch(url, { redirect: 'follow' });
     if (!response.ok || !response.body) throw new Error(`Download failed (${response.status})`);
-    await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(targetPath));
+
+    // Get total size for progress tracking
+    const totalBytes = parseInt(response.headers.get('content-length') || '0', 10);
+    let downloadedBytes = 0;
+
+    // We can use a custom Transform stream to track progress
+    const { Transform } = require('stream');
+    const progressStream = new Transform({
+      transform(chunk, encoding, callback) {
+        downloadedBytes += chunk.length;
+        if (totalBytes > 0 && event.sender && !event.sender.isDestroyed()) {
+          const percent = Math.round((downloadedBytes / totalBytes) * 100);
+          event.sender.send('update:progress', { percent, downloadedBytes, totalBytes });
+        }
+        callback(null, chunk);
+      }
+    });
+
+    await pipeline(
+      Readable.fromWeb(response.body),
+      progressStream,
+      fs.createWriteStream(targetPath)
+    );
+
     if (process.platform === 'win32' && targetPath.toLowerCase().endsWith('.exe')) {
       shell.showItemInFolder(targetPath);
       spawn(targetPath, [], { detached: true, stdio: 'ignore', windowsHide: true }).unref();

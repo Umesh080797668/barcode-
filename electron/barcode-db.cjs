@@ -97,6 +97,23 @@ class BarcodeDB {
         `);
       this.db.run(`CREATE INDEX IF NOT EXISTS idx_custom_fields_sort_order ON custom_fields(sort_order)`);
 
+      // ── Supplier Returns table ───────────────────────────────────────────
+      this.db.run(`
+          CREATE TABLE IF NOT EXISTS supplier_returns (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            returned_barcode    TEXT NOT NULL,
+            returned_name       TEXT,
+            returned_qty        INTEGER DEFAULT 1,
+            return_type         TEXT NOT NULL DEFAULT 'no_replacement',
+            replacement_barcode TEXT,
+            replacement_name    TEXT,
+            replacement_qty     INTEGER DEFAULT 0,
+            notes               TEXT,
+            created_at          TEXT DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+      this.db.run(`CREATE INDEX IF NOT EXISTS idx_supplier_returns_created ON supplier_returns(created_at DESC)`);
+
       if (!hadDbFile || schemaChanged) {
         this._saveDisk();
       }
@@ -1057,11 +1074,125 @@ class BarcodeDB {
 
   async deleteInvoice(invoiceNo) {
     await this._ensureInvoiceTables();
-    const inv = await this.getInvoice(invoiceNo);
-    if (!inv) return { success: false };
-    this.db.run('DELETE FROM invoice_items WHERE invoice_id = ?', [inv.id]);
-    this.db.run('DELETE FROM invoices WHERE invoice_no = ?', [invoiceNo]);
-    this._saveDisk();
+    if (!this.db) return { success: false };
+    this.db.run('BEGIN TRANSACTION');
+    try {
+      this.db.run('DELETE FROM invoice_items WHERE invoice_id IN (SELECT id FROM invoices WHERE invoice_no = ?)', [invoiceNo]);
+      this.db.run('DELETE FROM invoices WHERE invoice_no = ?', [invoiceNo]);
+      this.db.run('COMMIT');
+    } catch (err) {
+      this.db.run('ROLLBACK');
+      return { success: false, error: err.message };
+    }
+    this._scheduleSaveDisk();
+    return { success: true };
+  }
+
+  // ── Supplier Returns ─────────────────────────────────────────────────────
+
+  async saveSupplierReturn(data) {
+    await this._ensureReady();
+    if (!this.db) throw new Error('Database not initialized');
+
+    const returnedBarcode = String(data.returned_barcode || '').trim();
+    if (!returnedBarcode) return { success: false, error: 'Returned barcode is required' };
+    const returnedQty = Math.max(1, Number(data.returned_qty) || 1);
+    const returnType = data.return_type === 'replaced' ? 'replaced' : 'no_replacement';
+    const replacementBarcode = returnType === 'replaced' ? String(data.replacement_barcode || '').trim() : null;
+    const replacementQty = returnType === 'replaced' ? Math.max(1, Number(data.replacement_qty) || 1) : 0;
+
+    if (returnType === 'replaced' && !replacementBarcode) {
+      return { success: false, error: 'Replacement barcode is required when return type is "replaced"' };
+    }
+
+    this.db.run('BEGIN TRANSACTION');
+    try {
+      // 1. Decrease returned product quantity (floor at 0)
+      const retProd = await this.getProduct(returnedBarcode);
+      if (retProd) {
+        const newQty = Math.max(0, (retProd.quantity || 0) - returnedQty);
+        const updStmt = this.db.prepare(
+          `UPDATE products SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE barcode = ?`
+        );
+        updStmt.run([newQty, returnedBarcode]);
+        updStmt.free();
+      }
+
+      // 2. Handle replacement stock increase
+      if (returnType === 'replaced' && replacementBarcode) {
+        const repProd = await this.getProduct(replacementBarcode);
+        if (repProd) {
+          const newRepQty = (repProd.quantity || 0) + replacementQty;
+          const updRepStmt = this.db.prepare(
+            `UPDATE products SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE barcode = ?`
+          );
+          updRepStmt.run([newRepQty, replacementBarcode]);
+          updRepStmt.free();
+        } else {
+          // Create new product row for the replacement barcode
+          const insStmt = this.db.prepare(
+            `INSERT INTO products (barcode, name, quantity, price, scan_mode, modal) VALUES (?, ?, ?, 0, 'inventory_only', ?)`
+          );
+          insStmt.run([
+            replacementBarcode,
+            data.replacement_name || replacementBarcode,
+            replacementQty,
+            data.replacement_modal || retProd?.modal || null,
+          ]);
+          insStmt.free();
+        }
+      }
+
+      // 3. Record the return
+      const insReturn = this.db.prepare(`
+          INSERT INTO supplier_returns
+            (returned_barcode, returned_name, returned_qty, return_type, replacement_barcode, replacement_name, replacement_qty, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+      insReturn.run([
+        returnedBarcode,
+        data.returned_name || retProd?.name || returnedBarcode,
+        returnedQty,
+        returnType,
+        replacementBarcode,
+        data.replacement_name || null,
+        replacementQty,
+        data.notes || null,
+      ]);
+      insReturn.free();
+
+      const idRes = this.db.exec('SELECT last_insert_rowid() as id');
+      const newId = idRes?.[0]?.values?.[0]?.[0] || null;
+
+      this.db.run('COMMIT');
+      this._scheduleSaveDisk();
+      return { success: true, id: newId };
+    } catch (err) {
+      this.db.run('ROLLBACK');
+      return { success: false, error: err.message };
+    }
+  }
+
+  async getSupplierReturns(limit = 200) {
+    await this._ensureReady();
+    if (!this.db) return [];
+    const stmt = this.db.prepare(
+      `SELECT * FROM supplier_returns ORDER BY created_at DESC LIMIT ?`
+    );
+    stmt.bind([limit]);
+    const results = [];
+    while (stmt.step()) results.push(stmt.getAsObject());
+    stmt.free();
+    return results;
+  }
+
+  async deleteSupplierReturn(id) {
+    await this._ensureReady();
+    if (!this.db) return { success: false };
+    const stmt = this.db.prepare('DELETE FROM supplier_returns WHERE id = ?');
+    stmt.run([id]);
+    stmt.free();
+    this._scheduleSaveDisk();
     return { success: true };
   }
 }

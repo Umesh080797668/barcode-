@@ -6,6 +6,7 @@ import ScanVaultTutorial from './ScanVaultTutorial';
 const BarcodeGenerator = lazy(() => import('./BarcodeGenerator'));
 const BillingModule = lazy(() => import('./BillingModule'));
 const UsedPurchaseModule = lazy(() => import('./UsedPurchaseModule'));
+const SupplierReturnsModule = lazy(() => import('./SupplierReturnsModule'));
 
 export default function App() {
   const UPDATE_REPO = 'Umesh080797668/barcode-';
@@ -35,6 +36,7 @@ export default function App() {
   const [updateStatus, setUpdateStatus] = useState('Idle');
   const [updateBusy, setUpdateBusy] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
+  const [updateProgress, setUpdateProgress] = useState(null);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [backupProgress, setBackupProgress] = useState(null);
@@ -134,6 +136,14 @@ export default function App() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
+  }, []);
+
+  // ── Update progress listener ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!window.electronAPI?.onUpdateProgress) return undefined;
+    return window.electronAPI.onUpdateProgress((payload) => {
+      setUpdateProgress(payload);
+    });
   }, []);
 
   // ── Backup progress listener ─────────────────────────────────────────────
@@ -462,7 +472,9 @@ export default function App() {
       const currentVersion = String(appVersion || '').replace(/^v/i, '');
       const latestVersion = String(release.tag_name || '').replace(/^v/i, '');
       const isUpToDate = currentVersion && latestVersion && currentVersion === latestVersion;
-      const info = { tag: release.tag_name || '', name: release.name || release.tag_name || 'Latest release', body: release.body || '', assetName: asset?.name || '', assetUrl: asset?.browser_download_url || '', currentVersion, latestVersion, publishedAt: release.published_at || '', updateAvailable: !isUpToDate };
+      // Filter out the standard Full Changelog link to keep notes clean
+      const cleanBody = (release.body || '').split(/\*\*Full Changelog\*\*:/i)[0].trim();
+      const info = { tag: release.tag_name || '', name: release.name || release.tag_name || 'Latest release', body: cleanBody, assetName: asset?.name || '', assetUrl: asset?.browser_download_url || '', currentVersion, latestVersion, publishedAt: release.published_at || '', updateAvailable: !isUpToDate };
       const skippedVersion = localStorage.getItem(UPDATE_SKIP_KEY) || '';
       const releaseKey = info.latestVersion || info.tag || '';
       setUpdateInfo(info);
@@ -485,6 +497,7 @@ export default function App() {
     if (updateInfo && updateInfo.updateAvailable === false) { setUpdateStatus(`Already on latest version`); return; }
     if (!window.electronAPI || !updateInfo?.assetUrl) { setUpdateStatus('No downloadable update found'); return; }
     setUpdateBusy(true);
+    setUpdateProgress({ percent: 0 });
     setUpdateStatus('Downloading update…');
     try {
       const result = await window.electronAPI.downloadAndInstallUpdate({ url: updateInfo.assetUrl, filename: updateInfo.assetName });
@@ -621,11 +634,24 @@ export default function App() {
               <div className="update-overlay-metric"><span>Published</span><strong>{updateInfo.publishedAt ? new Date(updateInfo.publishedAt).toLocaleDateString() : 'Unknown'}</strong></div>
             </div>
             {updateInfo.body && <div className="update-overlay-notes">{updateInfo.body}</div>}
-            <div className="update-overlay-actions">
-              <button className="btn-accent btn-lg" onClick={downloadAndInstallUpdate} disabled={updateBusy || !updateInfo?.assetUrl}><IconDownload /> Install Update</button>
-              <button className="btn-ghost btn-lg" onClick={dismissUpdatePrompt} disabled={updateBusy}>Skip for now</button>
-              <button className="btn-ghost btn-lg" onClick={checkForUpdates} disabled={updateBusy}><IconRefresh /> Check again</button>
-            </div>
+
+            {updateBusy && updateProgress ? (
+              <div className="backup-progress-card running" style={{ marginTop: '20px', background: 'rgba(0,0,0,0.2)' }}>
+                <div className="backup-progress-header">
+                  <div className="backup-progress-title">Downloading update…</div>
+                  <div className="backup-progress-badge" style={{ '--bp-color': 'var(--accent2)' }}>{updateProgress.percent}%</div>
+                </div>
+                <div className="backup-progress-bar">
+                  <div className="backup-progress-fill" style={{ width: `${Math.max(2, updateProgress.percent || 0)}%`, '--bp-color': 'var(--accent)' }} />
+                </div>
+              </div>
+            ) : (
+              <div className="update-overlay-actions">
+                <button className="btn-accent btn-lg" onClick={downloadAndInstallUpdate} disabled={updateBusy || !updateInfo?.assetUrl}><IconDownload /> Install Update</button>
+                <button className="btn-ghost btn-lg" onClick={dismissUpdatePrompt} disabled={updateBusy}>Skip for now</button>
+                <button className="btn-ghost btn-lg" onClick={checkForUpdates} disabled={updateBusy}><IconRefresh /> Check again</button>
+              </div>
+            )}
             <div className="update-overlay-footer">{updateStatus}</div>
           </div>
         </div>
@@ -792,7 +818,7 @@ export default function App() {
               </Suspense>
             ) : activeTab === 'returns' ? (
               <Suspense fallback={<div className="panel-loading">Loading returns…</div>}>
-                <BillingModule isReturnsOnly={true} />
+                <SupplierReturnsModule />
               </Suspense>
             ) : activeTab === 'barcode' ? (
               <Suspense fallback={<div className="panel-loading">Loading barcode tools…</div>}>
