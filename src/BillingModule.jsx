@@ -423,6 +423,7 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
     ${shopName ? `<div class="shop-name">${shopName}</div>` : ''}
     ${shopAddr ? `<div class="shop-address">${shopAddr}</div>` : ''}
     ${shopPhone ? `<div class="shop-phone">Tel: ${shopPhone}</div>` : ''}
+    ${shop.registered_no ? `<div class="shop-phone">Reg No: ${shop.registered_no}</div>` : ''}
   </div>
 
   <div class="logo-wrap">
@@ -988,6 +989,8 @@ function ShopSettings({ shopConfig, setShopConfig, printers, selectedPrinter, se
       <input className="bill-input" {...f('address')} placeholder="e.g. 152, High Level Road, Maharagama" />
       <label>Phone</label>
       <input className="bill-input" {...f('phone')} placeholder="e.g. 0777 119 126" />
+      <label>Registered Number</label>
+      <input className="bill-input" {...f('registered_no')} placeholder="e.g. PV 123456" />
 
       <div className="billing-section-title" style={{ marginTop: 16 }}>Printer</div>
       <label>Select Receipt Printer</label>

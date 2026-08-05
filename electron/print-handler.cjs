@@ -71,8 +71,8 @@ function buildReceiptHTML(invoice, shopConfig) {
     : new Date().toLocaleString('en-GB').replace(',', '');
 
   const invoiceNo = invoice.invoice_no || '';
-  const cashier   = invoice.cashier || shop.cashier || '';
-  const customer  = invoice.customer_name || '';
+  const cashier = invoice.cashier || shop.cashier || '';
+  const customer = invoice.customer_name || '';
   const custPhone = invoice.customer_phone || '';
 
   const balance = parseFloat(invoice.balance || 0);
@@ -151,6 +151,7 @@ function buildReceiptHTML(invoice, shopConfig) {
     ${shopName ? `<div class="shop-name">${shopName}</div>` : ''}
     ${shopAddr ? `<div class="shop-address">${shopAddr}</div>` : ''}
     ${shopPhone ? `<div class="shop-phone">Tel: ${shopPhone}</div>` : ''}
+    ${shop.registered_no ? `<div class="shop-phone">Reg No: ${shop.registered_no}</div>` : ''}
   </div>
 
   <div class="logo-wrap">
