@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Billing ─────────────────────────────────────────────────────────────
   saveInvoice: (invoice) => ipcRenderer.invoke('invoice:save', invoice),
   getInvoices: (limit) => ipcRenderer.invoke('invoice:getAll', limit),
+  getInvoicesByCustomer: (query) => ipcRenderer.invoke('invoice:getByCustomer', query),
   getInvoice: (invoiceNo) => ipcRenderer.invoke('invoice:get', invoiceNo),
   deleteInvoice: (invoiceNo) => ipcRenderer.invoke('invoice:delete', invoiceNo),
 

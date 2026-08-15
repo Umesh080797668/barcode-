@@ -26,6 +26,9 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
   const [returnCompany, setReturnCompany] = useState('');
   const [returnReason, setReturnReason] = useState('');
   const [invoices, setInvoices] = useState([]);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerSearchResults, setCustomerSearchResults] = useState(null); // null = not searching
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [editingInvoiceNo, setEditingInvoiceNo] = useState(null); // invoice being edited
   // printable preview is opened in a new window; no modal state required
   const [shopConfig, setShopConfig] = useState({});
@@ -77,6 +80,42 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
   useEffect(() => {
     if (view === 'history') loadInvoices();
   }, [view, loadInvoices]);
+
+  // Customer account lookup: search across ALL invoices for a customer (not
+  // limited to the recent-100 history list), so old purchases (even from a
+  // year ago) are still reachable — acts like a per-customer account view.
+  useEffect(() => {
+    if (view !== 'history' || !isElectron) return;
+    const term = customerSearch.trim();
+    if (!term) {
+      setCustomerSearchResults(null);
+      setCustomerSearchLoading(false);
+      return;
+    }
+    setCustomerSearchLoading(true);
+    const timer = setTimeout(() => {
+      window.electronAPI.getInvoicesByCustomer(term).then(r => {
+        setCustomerSearchResults(r.success ? (r.invoices || []) : []);
+        setCustomerSearchLoading(false);
+      }).catch(() => {
+        setCustomerSearchResults([]);
+        setCustomerSearchLoading(false);
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [customerSearch, view, isElectron]);
+
+  // Which rows to render in the history table: the customer's full purchase
+  // history when searching, otherwise the normal recent history.
+  const displayedInvoices = customerSearchResults !== null ? customerSearchResults : invoices;
+  const customerSummary = useMemo(() => {
+    if (customerSearchResults === null || customerSearchResults.length === 0) return null;
+    const totalSpent = customerSearchResults.reduce((s, inv) => {
+      if (inv.transaction_type === 'supplier_return') return s;
+      return s + (Number(inv.total) || 0);
+    }, 0);
+    return { count: customerSearchResults.length, totalSpent };
+  }, [customerSearchResults]);
 
   useEffect(() => {
     const handleRestoredData = () => {
@@ -899,6 +938,27 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
       {/* ── HISTORY ──────────────────────────────────────────────────────── */}
       {view === 'history' && (
         <div className="billing-history">
+          <div className="customer-search-bar" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <input
+              className="bill-input"
+              style={{ maxWidth: 320 }}
+              placeholder="🔍 Search by customer name..."
+              value={customerSearch}
+              onChange={e => setCustomerSearch(e.target.value)}
+            />
+            {customerSearch.trim() && (
+              <button className="hist-btn" onClick={() => setCustomerSearch('')}>✕ Clear</button>
+            )}
+            {customerSearchLoading && <span style={{ opacity: 0.7 }}>Searching…</span>}
+            {customerSummary && !customerSearchLoading && (
+              <span style={{ opacity: 0.85 }}>
+                {customerSummary.count} invoice{customerSummary.count === 1 ? '' : 's'} found · Total Rs. {fmt(customerSummary.totalSpent)}
+              </span>
+            )}
+            {customerSearchResults !== null && customerSearchResults.length === 0 && !customerSearchLoading && (
+              <span style={{ opacity: 0.7 }}>No purchases found for "{customerSearch}"</span>
+            )}
+          </div>
           <table className="history-table">
             <thead>
               <tr>
@@ -912,7 +972,7 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
               </tr>
             </thead>
             <tbody>
-              {invoices.map(inv => (
+              {displayedInvoices.map(inv => (
                 <tr key={inv.invoice_no}>
                   <td className="mono">{inv.invoice_no}</td>
                   <td>{inv.created_at ? (() => {
@@ -946,7 +1006,7 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
                   </td>
                 </tr>
               ))}
-              {invoices.length === 0 && (
+              {displayedInvoices.length === 0 && customerSearchResults === null && (
                 <tr><td colSpan={7} className="bill-empty">No invoices yet</td></tr>
               )}
             </tbody>

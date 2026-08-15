@@ -515,6 +515,11 @@ ipcMain.handle('invoice:getAll', async (_, limit) => {
   catch (e) { return { success: false, error: e.message }; }
 });
 
+ipcMain.handle('invoice:getByCustomer', async (_, query) => {
+  try { return { success: true, invoices: await barcodeDB.getInvoicesByCustomer(query) }; }
+  catch (e) { return { success: false, error: e.message }; }
+});
+
 ipcMain.handle('invoice:get', async (_, invoiceNo) => {
   try { return { success: true, invoice: await barcodeDB.getInvoice(invoiceNo) }; }
   catch (e) { return { success: false, error: e.message }; }

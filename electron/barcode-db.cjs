@@ -1054,6 +1054,20 @@ class BarcodeDB {
     return results;
   }
 
+  async getInvoicesByCustomer(query, limit = 2000) {
+    await this._ensureInvoiceTables();
+    const term = String(query || '').trim();
+    if (!term) return [];
+    const stmt = this.db.prepare(
+      'SELECT * FROM invoices WHERE customer_name LIKE ? COLLATE NOCASE ORDER BY created_at DESC LIMIT ?'
+    );
+    stmt.bind([`%${term}%`, limit]);
+    const results = [];
+    while (stmt.step()) results.push(stmt.getAsObject());
+    stmt.free();
+    return results;
+  }
+
   async getInvoice(invoiceNo) {
     await this._ensureInvoiceTables();
     const stmt = this.db.prepare('SELECT * FROM invoices WHERE invoice_no = ?');
