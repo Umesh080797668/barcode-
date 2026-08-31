@@ -322,4 +322,53 @@ async function getAvailablePrinters(win) {
   return win.webContents.getPrintersAsync();
 }
 
-module.exports = { printReceipt, buildReceiptHTML, getAvailablePrinters };
+async function generateReportPdf(htmlContent) {
+  return new Promise((resolve) => {
+    const tempFilePath = path.join(
+      os.tmpdir(),
+      `scanvault-report-${Date.now()}-${Math.random().toString(36).slice(2)}.html`
+    );
+
+    const win = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      }
+    });
+
+    fs.writeFileSync(tempFilePath, htmlContent, 'utf8');
+
+    const cleanup = () => {
+      try {
+        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+      } catch (_) { }
+    };
+
+    win.on('closed', cleanup);
+    win.loadFile(tempFilePath);
+
+    win.webContents.once('did-finish-load', () => {
+      win.webContents.printToPDF({
+        printBackground: true,
+        pageSize: 'A4',
+      }).then(data => {
+        cleanup();
+        win.destroy();
+        resolve({ success: true, buffer: data });
+      }).catch(err => {
+        cleanup();
+        win.destroy();
+        resolve({ success: false, error: err.message });
+      });
+    });
+
+    win.webContents.once('did-fail-load', (_event, errorCode, errorDescription) => {
+      cleanup();
+      win.destroy();
+      resolve({ success: false, error: `${errorCode}: ${errorDescription}` });
+    });
+  });
+}
+
+module.exports = { printReceipt, buildReceiptHTML, getAvailablePrinters, generateReportPdf };

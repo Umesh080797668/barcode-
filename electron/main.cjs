@@ -571,6 +571,43 @@ ipcMain.handle('printer:print', async (_, { invoice, shopConfig, printerName }) 
   catch (e) { return { success: false, error: e.message }; }
 });
 
+// ── Reports IPC ────────────────────────────────────────────────────────────
+
+ipcMain.handle('reports:getData', async (_, type) => {
+  try {
+    const data = await barcodeDB.getReportData(type);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('reports:exportPdf', async (_, { htmlContent, defaultFilename }) => {
+  try {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save PDF Report',
+      defaultPath: path.join(app.getPath('documents'), defaultFilename || 'report.pdf'),
+      filters: [{ name: 'PDF Documents', extensions: ['pdf'] }]
+    });
+
+    if (canceled || !filePath) {
+      return { success: false, canceled: true };
+    }
+
+    const { generateReportPdf } = require('./print-handler.cjs');
+    const pdfRes = await generateReportPdf(htmlContent);
+    if (pdfRes.success) {
+      fs.writeFileSync(filePath, pdfRes.buffer);
+      shell.openPath(filePath).catch(() => { });
+      return { success: true, filePath };
+    } else {
+      return { success: false, error: pdfRes.error };
+    }
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // ── Shop Settings IPC ──────────────────────────────────────────────────────
 
 ipcMain.handle('settings:getShop', async () => {

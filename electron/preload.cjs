@@ -70,4 +70,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteSupplierReturn: (id) => ipcRenderer.invoke('returns:delete', id),
   receiveSupplierReplacement: (id, data) => ipcRenderer.invoke('returns:receiveReplacement', { id, data }),
   updateInvoice: (invoiceNo, invoice) => ipcRenderer.invoke('invoice:update', { invoiceNo, invoice }),
+
+  // ── Reports ───────────────────────────────────────────────────────────────
+  getReportData: (type) => ipcRenderer.invoke('reports:getData', type),
+  exportReportPdf: (payload) => ipcRenderer.invoke('reports:exportPdf', payload),
 });

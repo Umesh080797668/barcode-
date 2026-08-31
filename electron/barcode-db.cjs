@@ -1276,6 +1276,57 @@ class BarcodeDB {
     }
   }
 
+  // ── Reports ───────────────────────────────────────────────────────────────
+  async getReportData(type) {
+    await this._ensureReady();
+    if (!this.db) return [];
+
+    let formatString = '';
+    if (type === 'daily') {
+      formatString = '%Y-%m-%d';
+    } else if (type === 'monthly') {
+      formatString = '%Y-%m';
+    } else {
+      throw new Error('Invalid report type: ' + type);
+    }
+
+    try {
+      const sql = `
+        SELECT 
+          strftime('${formatString}', i.created_at) as period,
+          ii.barcode,
+          MAX(ii.name) as name,
+          SUM(ii.quantity) as qtySold,
+          SUM(ii.total) as revenue,
+          MAX(p.quantity) as currentStock
+        FROM invoice_items ii
+        JOIN invoices i ON ii.invoice_id = i.id
+        LEFT JOIN products p ON ii.barcode = p.barcode
+        WHERE i.status != 'cancelled'
+        GROUP BY period, ii.barcode
+        ORDER BY period DESC, revenue DESC
+      `;
+
+      const res = this.db.exec(sql);
+
+      if (res.length === 0) return [];
+
+      const results = res[0].values.map(row => ({
+        period: row[0],
+        barcode: row[1],
+        name: row[2],
+        qtySold: row[3] || 0,
+        revenue: row[4] || 0,
+        currentStock: row[5] || 0
+      }));
+
+      return results;
+    } catch (err) {
+      console.error('[BarcodeDB] getReportData error:', err);
+      return [];
+    }
+  }
+
   // Update an existing saved invoice (add/remove items, update totals)
   async updateInvoice(invoiceNo, invoice) {
     await this._ensureInvoiceTables();

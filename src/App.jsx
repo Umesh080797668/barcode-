@@ -7,6 +7,7 @@ const BarcodeGenerator = lazy(() => import('./BarcodeGenerator'));
 const BillingModule = lazy(() => import('./BillingModule'));
 const UsedPurchaseModule = lazy(() => import('./UsedPurchaseModule'));
 const SupplierReturnsModule = lazy(() => import('./SupplierReturnsModule'));
+const ReportsModule = lazy(() => import('./ReportsModule'));
 
 export default function App() {
   const UPDATE_REPO = 'Umesh080797668/barcode-';
@@ -792,6 +793,7 @@ export default function App() {
                 <button className={`tab ${activeTab === 'data' ? 'tab-on' : ''}`} onClick={() => setActiveTab('data')}><IconTable /> Inventory</button>
                 <button className={`tab ${activeTab === 'barcode' ? 'tab-on' : ''}`} onClick={() => setActiveTab('barcode')}><IconBarcode /> Barcode Creator</button>
                 <button className={`tab ${activeTab === 'billing' ? 'tab-on' : ''}`} onClick={() => setActiveTab('billing')}><IconPrinter /> Billing</button>
+                <button className={`tab ${activeTab === 'reports' ? 'tab-on' : ''}`} onClick={() => setActiveTab('reports')}><IconChart /> Reports</button>
                 <button className={`tab ${activeTab === 'returns' ? 'tab-on' : ''}`} onClick={() => setActiveTab('returns')}><IconAlert /> Returns</button>
                 <button className={`tab ${activeTab === 'outofstock' ? 'tab-on' : ''}`} onClick={() => setActiveTab('outofstock')} style={{ position: 'relative' }}>
                   <IconAlert /> Out of Stock
@@ -819,6 +821,10 @@ export default function App() {
             ) : activeTab === 'returns' ? (
               <Suspense fallback={<div className="panel-loading">Loading returns…</div>}>
                 <SupplierReturnsModule />
+              </Suspense>
+            ) : activeTab === 'reports' ? (
+              <Suspense fallback={<div className="panel-loading">Loading reports…</div>}>
+                <ReportsModule isActive={activeTab === 'reports'} />
               </Suspense>
             ) : activeTab === 'barcode' ? (
               <Suspense fallback={<div className="panel-loading">Loading barcode tools…</div>}>
@@ -1107,3 +1113,4 @@ const IconSearch = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="n
 const IconBarcode = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="2" height="16" rx="0.5" /><rect x="5" y="4" width="1" height="16" rx="0.5" /><rect x="7" y="4" width="2" height="16" rx="0.5" /><rect x="11" y="4" width="1" height="16" rx="0.5" /><rect x="13" y="4" width="3" height="16" rx="0.5" /><rect x="17" y="4" width="1" height="16" rx="0.5" /><rect x="19" y="4" width="3" height="16" rx="0.5" /></svg>;
 const IconPrinter = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>;
 const IconAlert = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>;
+const IconChart = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>;
