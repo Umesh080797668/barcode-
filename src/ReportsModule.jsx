@@ -26,6 +26,15 @@ export default function ReportsModule({ isActive }) {
         setLoading(false);
     };
 
+    const periodOrder = [...new Set(data.map(r => r.period))];
+    const groupedData = data.reduce((acc, row) => {
+        if (!acc[row.period]) acc[row.period] = { items: [], totalRevenue: 0, totalSold: 0 };
+        acc[row.period].items.push(row);
+        acc[row.period].totalRevenue += row.revenue;
+        acc[row.period].totalSold += row.qtySold;
+        return acc;
+    }, {});
+
     const handleExportPdf = async () => {
         const htmlContent = `
       <!DOCTYPE html>
@@ -52,7 +61,6 @@ export default function ReportsModule({ isActive }) {
         <table>
           <thead>
             <tr>
-              <th>Period</th>
               <th>Product</th>
               <th class="text-right">Sold</th>
               <th class="text-right">Current Stock</th>
@@ -60,18 +68,30 @@ export default function ReportsModule({ isActive }) {
             </tr>
           </thead>
           <tbody>
-            ${data.map(row => `
-              <tr>
-                <td style="white-space: nowrap;"><strong>${row.period}</strong></td>
-                <td>
-                  <div class="product-name">${row.name || 'Unknown Item'}</div>
-                  <div class="barcode">${row.barcode || ''}</div>
+            ${periodOrder.map(period => {
+            const group = groupedData[period];
+            return `
+              <tr style="background-color: #f3f4f6;">
+                <td colspan="4" style="font-weight: 600; padding: 12px;">
+                  <div style="display: flex; justify-content: space-between;">
+                    <span>📅 ${type === 'daily' ? 'Date' : 'Month'}: ${period}</span>
+                    <span style="color: #0284c7;">Total Sold: ${formatNumber(group.totalSold)} | Total Revenue: Rs. ${formatCurrency(group.totalRevenue)}</span>
+                  </div>
                 </td>
-                <td class="text-right">${formatNumber(row.qtySold)}</td>
-                <td class="text-right">${formatNumber(row.currentStock)}</td>
-                <td class="text-right revenue">${formatCurrency(row.revenue)}</td>
               </tr>
-            `).join('')}
+              ${group.items.map(row => `
+                <tr>
+                  <td>
+                    <div class="product-name">${row.name || 'Unknown Item'}</div>
+                    <div class="barcode">${row.barcode || ''}</div>
+                  </td>
+                  <td class="text-right">${formatNumber(row.qtySold)}</td>
+                  <td class="text-right">${formatNumber(row.currentStock)}</td>
+                  <td class="text-right revenue">${formatCurrency(row.revenue)}</td>
+                </tr>
+              `).join('')}
+              `;
+        }).join('')}
           </tbody>
         </table>
         
@@ -145,7 +165,6 @@ export default function ReportsModule({ isActive }) {
                     <table className="data-table">
                         <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--surface)' }}>
                             <tr>
-                                <th style={{ width: '120px' }}>Period</th>
                                 <th>Product</th>
                                 <th style={{ textAlign: 'center', width: '90px' }}>Sold</th>
                                 <th style={{ textAlign: 'center', width: '110px' }}>Current Stock</th>
@@ -153,22 +172,39 @@ export default function ReportsModule({ isActive }) {
                             </tr>
                         </thead>
                         <tbody>
-                            {data.map((row, i) => (
-                                <tr key={i} className="hover-highlight">
-                                    <td style={{ fontWeight: '600', whiteSpace: 'nowrap' }}>{row.period}</td>
-                                    <td>
-                                        <div style={{ fontWeight: 600 }}>{row.name || 'Unknown Item'}</div>
-                                        <div className="td-code" style={{ opacity: 0.7, marginTop: '3px' }}>{row.barcode || ''}</div>
-                                    </td>
-                                    <td style={{ textAlign: 'center', fontWeight: '500' }}>{formatNumber(row.qtySold)}</td>
-                                    <td style={{ textAlign: 'center' }}>
-                                        <span className="qty-badge">{formatNumber(row.currentStock)}</span>
-                                    </td>
-                                    <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--green)' }}>
-                                        Rs. {formatCurrency(row.revenue)}
-                                    </td>
-                                </tr>
-                            ))}
+                            {periodOrder.map((period) => {
+                                const group = groupedData[period];
+                                return (
+                                    <React.Fragment key={period}>
+                                        <tr style={{ background: 'var(--surface2)' }}>
+                                            <td colSpan="4" style={{ padding: '12px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontWeight: 'bold', fontSize: '14px' }}>📅 {type === 'daily' ? 'Date' : 'Month'}: {period}</span>
+                                                    <span style={{ fontSize: '14px', fontWeight: '600' }}>
+                                                        <span style={{ marginRight: '15px' }}>Total Sold: {formatNumber(group.totalSold)}</span>
+                                                        <span style={{ color: 'var(--green)' }}>Total Revenue: Rs. {formatCurrency(group.totalRevenue)}</span>
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {group.items.map((row, i) => (
+                                            <tr key={`${period}-${i}`} className="hover-highlight">
+                                                <td style={{ paddingLeft: '30px' }}>
+                                                    <div style={{ fontWeight: 600 }}>{row.name || 'Unknown Item'}</div>
+                                                    <div className="td-code" style={{ opacity: 0.7, marginTop: '3px' }}>{row.barcode || ''}</div>
+                                                </td>
+                                                <td style={{ textAlign: 'center', fontWeight: '500' }}>{formatNumber(row.qtySold)}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <span className="qty-badge">{formatNumber(row.currentStock)}</span>
+                                                </td>
+                                                <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--green)' }}>
+                                                    Rs. {formatCurrency(row.revenue)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </React.Fragment>
+                                );
+                            })}
                         </tbody>
                     </table>
                 )}
