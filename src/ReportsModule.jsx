@@ -115,9 +115,9 @@ export default function ReportsModule({ isActive }) {
     if (!isActive) return null;
 
     return (
-        <div className="oos-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-            <div className="oos-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
-                <div className="oos-header-left" style={{ flex: 1 }}>
+        <div className="oos-panel">
+            <div className="oos-header">
+                <div className="oos-header-left">
                     <span className="oos-icon">📊</span>
                     <div>
                         <h2 className="oos-title">Sales & Stock Breakdown</h2>
@@ -125,16 +125,16 @@ export default function ReportsModule({ isActive }) {
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <div className="reports-tabs" style={{ display: 'flex', background: 'var(--surface2)', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <div className="reports-toolbar">
+                    <div className="reports-type-toggle">
                         <button
-                            style={{ background: type === 'daily' ? 'var(--accent)' : 'transparent', color: type === 'daily' ? '#fff' : 'var(--text)', border: 'none', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontWeight: type === 'daily' ? '600' : '400', transition: 'all 0.15s' }}
+                            className={`reports-type-btn ${type === 'daily' ? 'active' : ''}`}
                             onClick={() => setType('daily')}
                         >
                             Daily
                         </button>
                         <button
-                            style={{ background: type === 'monthly' ? 'var(--accent)' : 'transparent', color: type === 'monthly' ? '#fff' : 'var(--text)', border: 'none', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontWeight: type === 'monthly' ? '600' : '400', transition: 'all 0.15s' }}
+                            className={`reports-type-btn ${type === 'monthly' ? 'active' : ''}`}
                             onClick={() => setType('monthly')}
                         >
                             Monthly
@@ -144,76 +144,73 @@ export default function ReportsModule({ isActive }) {
                     <button className="btn-ghost" onClick={loadData} title="Refresh">
                         <IconRefresh />
                     </button>
-                    <button className="btn-accent" onClick={handleExportPdf} disabled={loading || data.length === 0} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button className="btn-accent" onClick={handleExportPdf} disabled={loading || data.length === 0}>
                         <IconDownload /> Export PDF
                     </button>
                 </div>
             </div>
 
-            <div className="oos-table-wrap" style={{ flex: 1, marginTop: '15px', position: 'relative' }}>
+            <div className="reports-body">
                 {loading ? (
-                    <div className="empty-state" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <div className="spinner" style={{ width: '30px', height: '30px', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                    <div className="reports-loading">
+                        <div className="spinner" />
                     </div>
                 ) : data.length === 0 ? (
-                    <div className="oos-empty" style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.7 }}>
-                        <div className="oos-empty-icon" style={{ fontSize: '32px', marginBottom: '10px' }}>📊</div>
-                        <h3 style={{ margin: '0 0 5px 0' }}>No data available</h3>
-                        <p style={{ margin: 0, fontSize: '12px' }}>No selling data found for this breakdown.</p>
+                    <div className="oos-empty">
+                        <div className="oos-empty-icon">📊</div>
+                        <h3>No data available</h3>
+                        <p>No selling data found for this breakdown.</p>
                     </div>
                 ) : (
-                    <table className="data-table">
-                        <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--surface)' }}>
-                            <tr>
-                                <th>Product</th>
-                                <th style={{ textAlign: 'center', width: '90px' }}>Sold</th>
-                                <th style={{ textAlign: 'center', width: '110px' }}>Current Stock</th>
-                                <th style={{ textAlign: 'right', width: '140px' }}>Revenue</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {periodOrder.map((period) => {
-                                const group = groupedData[period];
-                                return (
-                                    <React.Fragment key={period}>
-                                        <tr style={{ background: 'var(--surface2)' }}>
-                                            <td colSpan="4" style={{ padding: '12px' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span style={{ fontWeight: 'bold', fontSize: '14px' }}>📅 {type === 'daily' ? 'Date' : 'Month'}: {period}</span>
-                                                    <span style={{ fontSize: '14px', fontWeight: '600' }}>
-                                                        <span style={{ marginRight: '15px' }}>Total Sold: {formatNumber(group.totalSold)}</span>
-                                                        <span style={{ color: 'var(--green)' }}>Total Revenue: Rs. {formatCurrency(group.totalRevenue)}</span>
-                                                    </span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        {group.items.map((row, i) => (
-                                            <tr key={`${period}-${i}`} className="hover-highlight">
-                                                <td style={{ paddingLeft: '30px' }}>
-                                                    <div style={{ fontWeight: 600 }}>{row.name || 'Unknown Item'}</div>
-                                                    <div className="td-code" style={{ opacity: 0.7, marginTop: '3px' }}>{row.barcode || ''}</div>
-                                                </td>
-                                                <td style={{ textAlign: 'center', fontWeight: '500' }}>{formatNumber(row.qtySold)}</td>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    <span className="qty-badge">{formatNumber(row.currentStock)}</span>
-                                                </td>
-                                                <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--green)' }}>
-                                                    Rs. {formatCurrency(row.revenue)}
+                    <div className="reports-table-scroll">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th className="ta-center" style={{ width: '90px' }}>Sold</th>
+                                    <th className="ta-center" style={{ width: '110px' }}>Current Stock</th>
+                                    <th className="ta-right" style={{ width: '140px' }}>Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {periodOrder.map((period) => {
+                                    const group = groupedData[period];
+                                    return (
+                                        <React.Fragment key={period}>
+                                            <tr className="reports-group-row">
+                                                <td colSpan="4">
+                                                    <div className="reports-group-bar">
+                                                        <span className="reports-group-label">📅 {type === 'daily' ? 'Date' : 'Month'}: {period}</span>
+                                                        <span className="reports-group-stats">
+                                                            <span>Total Sold: {formatNumber(group.totalSold)}</span>
+                                                            <span className="value-revenue">Total Revenue: Rs. {formatCurrency(group.totalRevenue)}</span>
+                                                        </span>
+                                                    </div>
                                                 </td>
                                             </tr>
-                                        ))}
-                                    </React.Fragment>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                            {group.items.map((row, i) => (
+                                                <tr key={`${period}-${i}`} className="reports-row">
+                                                    <td>
+                                                        <div className="reports-row-name">{row.name || 'Unknown Item'}</div>
+                                                        <div className="td-code reports-row-code">{row.barcode || ''}</div>
+                                                    </td>
+                                                    <td className="ta-center">{formatNumber(row.qtySold)}</td>
+                                                    <td className="ta-center">
+                                                        <span className="qty-badge">{formatNumber(row.currentStock)}</span>
+                                                    </td>
+                                                    <td className="ta-right reports-row-revenue">
+                                                        Rs. {formatCurrency(row.revenue)}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
-            <style>{`
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-        .hover-highlight { transition: background-color 0.15s; border-bottom: 1px solid var(--border); }
-        .hover-highlight:hover td { background-color: var(--surface2); }
-      `}</style>
         </div>
     );
 }

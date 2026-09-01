@@ -995,8 +995,7 @@ export default function BillingModule({ isReturnsOnly = false, isUsedPurchaseWin
                     </button>
                     {inv.transaction_type !== 'supplier_return' && inv.transaction_type !== 'customer_return' && (
                       <button
-                        className="hist-btn"
-                        style={{ background: 'var(--accent, #1a7f3c)', color: '#fff' }}
+                        className="hist-btn hist-btn--accent"
                         title="Load invoice into cart to add more products"
                         onClick={() => loadInvoiceForEdit(inv.invoice_no)}
                       >
