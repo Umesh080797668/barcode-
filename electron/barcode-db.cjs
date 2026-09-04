@@ -1302,7 +1302,7 @@ class BarcodeDB {
         FROM invoice_items ii
         JOIN invoices i ON ii.invoice_id = i.id
         LEFT JOIN products p ON ii.barcode = p.barcode
-        WHERE i.status != 'cancelled'
+        WHERE i.status != 'cancelled' AND i.transaction_type = 'sale'
         GROUP BY period, ii.barcode
         ORDER BY period DESC, revenue DESC
       `;
