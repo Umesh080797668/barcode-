@@ -1141,6 +1141,8 @@ select.sr-input {
   padding: 22px 24px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
+  /* ← added */
   display: flex;
   flex-direction: column;
   gap: 18px;
