@@ -1144,8 +1144,7 @@ select.sr-input {
 /* ── Out of stock panel (also used by Reports) ───────────────────────── */
 .oos-panel {
   padding: 22px 24px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden; /* the panel itself doesn't scroll — the table wrap below does */
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1159,6 +1158,7 @@ select.sr-input {
   justify-content: space-between;
   gap: 14px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .oos-header-left {
@@ -1213,7 +1213,16 @@ select.sr-input {
   margin-bottom: 6px;
 }
 
-.oos-table-wrap,
+.oos-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
 .sr-table-wrap,
 .table-card {
   border: 1px solid var(--border);
@@ -1229,6 +1238,9 @@ select.sr-input {
 }
 
 .oos-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   text-align: left;
   padding: 11px 14px;
   background: var(--surface2);
