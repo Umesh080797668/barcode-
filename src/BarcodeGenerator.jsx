@@ -340,8 +340,12 @@ export default function BarcodeGenerator() {
       {/* toast */}
       {toast && <div className={`bc-toast ${toast.type === 'err' ? 'bc-toast-err' : ''}`}>{toast.msg}</div>}
 
-      {/* hidden SVG used for print only */}
-      <svg ref={printRef} style={{ display:'none' }} />
+      {/* hidden SVG used for print only — the wrapper (not the svg itself) carries the
+          display:none, since JsBarcode rewrites the target element's own style/attrs
+          (wiping an inline display:none on the svg) when it renders into it */}
+      <div className="bc-print-hidden" aria-hidden="true">
+        <svg ref={printRef} />
+      </div>
 
       {/* ── NAV BAR ─────────────────────────────────────────────────── */}
       <div className="bc-nav">
@@ -361,7 +365,7 @@ export default function BarcodeGenerator() {
           )}
           {(view==='create'||view==='preview') && (
             <>
-              <button className="bc-btn-ghost" onClick={()=>setView('list')}>← Back</button>
+              <button className="bc-btn-ghost" onClick={()=>{ setView('list'); setEdit(null); }}>← Back</button>
               <button className="bc-btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : '💾 Save'}
               </button>

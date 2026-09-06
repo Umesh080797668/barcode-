@@ -515,6 +515,7 @@ select.sr-input {
   flex: 1;
   display: flex;
   min-height: 0;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -751,6 +752,7 @@ select.sr-input {
   min-width: 0;
   min-height: 0;
   background: var(--bg);
+  overflow: hidden; /* contain children so only inner panels scroll, never the window */
 }
 
 .tab-bar {
@@ -914,7 +916,9 @@ select.sr-input {
 /* ── Data table ───────────────────────────────────────────────────────── */
 .table-wrap {
   flex: 1;
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 0 20px 20px;
 }
 
@@ -986,6 +990,7 @@ select.sr-input {
   border-bottom: 1px solid var(--border);
   color: var(--text-soft);
   vertical-align: middle;
+  overflow-wrap: anywhere;
 }
 
 .data-table tbody tr {
@@ -1140,9 +1145,9 @@ select.sr-input {
 .oos-panel {
   padding: 22px 24px;
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
   min-height: 0;
-  /* ← added */
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -1239,6 +1244,7 @@ select.sr-input {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   color: var(--text-soft);
+  overflow-wrap: anywhere;
 }
 
 .oos-row:hover {
@@ -1304,7 +1310,9 @@ select.sr-input {
 
 .reports-table-scroll {
   flex: 1;
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -1368,7 +1376,9 @@ select.sr-input {
 .settings-panel {
   padding: 24px;
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -1665,6 +1675,16 @@ select.sr-input {
 /* ═══════════════════════════════════════════════════════════════════════
    Barcode Generator
    ═══════════════════════════════════════════════════════════════════════ */
+.bc-print-hidden {
+  display: none !important;
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 .bc-root {
   flex: 1;
   display: flex;
@@ -1672,6 +1692,7 @@ select.sr-input {
   min-height: 0;
   padding: 20px 24px;
   overflow-y: auto;
+  overflow-x: hidden;
   gap: 18px;
 }
 
@@ -2092,6 +2113,7 @@ select.sr-input {
   min-height: 0;
   padding: 20px 24px;
   overflow-y: auto;
+  overflow-x: hidden;
   gap: 16px;
 }
 
@@ -2493,11 +2515,13 @@ select.sr-input {
    ═══════════════════════════════════════════════════════════════════════ */
 .sr-panel {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
   padding: 22px 24px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sr-header {
