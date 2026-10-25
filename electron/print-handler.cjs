@@ -17,12 +17,80 @@ function buildReceiptHTML(invoice, shopConfig) {
 
   // Treat both supplier_return and customer_return as "return" invoices for display rules
   const isReturnInvoice = invoice?.transaction_type === 'supplier_return' || invoice?.transaction_type === 'customer_return';
+  const warrantyBaseDate = (() => {
+    const src = invoice?.created_at ? new Date(invoice.created_at) : new Date();
+    if (Number.isNaN(src.getTime())) return new Date();
+    return new Date(src.getFullYear(), src.getMonth(), src.getDate());
+  })();
+
+  const formatIsoDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const addDays = (date, days) => {
+    const out = new Date(date);
+    out.setDate(out.getDate() + days);
+    return out;
+  };
+
+  const addMonthsClamped = (date, months) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const day = date.getDate();
+    const targetMonthIndex = month + months;
+    const targetYear = year + Math.floor(targetMonthIndex / 12);
+    const targetMonth = ((targetMonthIndex % 12) + 12) % 12;
+    const lastDayOfTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+    const clampedDay = Math.min(day, lastDayOfTargetMonth);
+    return new Date(targetYear, targetMonth, clampedDay);
+  };
+
+  const parseWarrantyDuration = (text) => {
+    const normalized = String(text || '').trim().toLowerCase();
+    const match = normalized.match(/^(\d+)\s*(day|days|month|months|year|years)$/i);
+    if (!match) return null;
+    const amount = Number(match[1]);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    const unitRaw = match[2].toLowerCase();
+    if (unitRaw.startsWith('day')) return { amount, unit: 'day' };
+    if (unitRaw.startsWith('month')) return { amount, unit: 'month' };
+    if (unitRaw.startsWith('year')) return { amount, unit: 'year' };
+    return null;
+  };
+
+  const formatWarrantyWithPeriod = (rawText) => {
+    const label = String(rawText || '').trim();
+    if (!label) return '';
+    if (label.toLowerCase() === 'no warranty') return label;
+    const parsed = parseWarrantyDuration(label);
+    if (!parsed) return label;
+
+    let endDate = warrantyBaseDate;
+    if (parsed.unit === 'day') {
+      endDate = addDays(warrantyBaseDate, parsed.amount + 1);
+    } else if (parsed.unit === 'month') {
+      endDate = addMonthsClamped(warrantyBaseDate, parsed.amount);
+    } else if (parsed.unit === 'year') {
+      endDate = addMonthsClamped(warrantyBaseDate, parsed.amount * 12);
+    }
+
+    return `${label} (${formatIsoDate(warrantyBaseDate)}-${formatIsoDate(endDate)})`;
+  };
+
+  const formatWarrantyList = (items, fieldName) => {
+    return ([...new Set((items || [])
+      .map((item) => String(item?.[fieldName] || '').trim())
+      .filter(Boolean)
+      .map(formatWarrantyWithPeriod))].join(', ') || '—');
+  };
+
   // For customer returns prefer remaining_warranty field if present; otherwise fall back to item.warranty
   const warrantyText = (invoice.transaction_type === 'customer_return')
-    ? ([...new Set((invoice.items || []).map((item) => (item.remaining_warranty || '').trim()).filter(Boolean))].join(', ') || '—')
-    : (isReturnInvoice ? '' : ([...new Set((invoice.items || [])
-      .map((item) => (item.warranty || '').trim())
-      .filter(Boolean))].join(', ') || '—'));
+    ? formatWarrantyList(invoice.items, 'remaining_warranty')
+    : (isReturnInvoice ? '' : formatWarrantyList(invoice.items, 'warranty'));
 
   const itemRows = (invoice.items || []).map((item, i) => `
     <tr>

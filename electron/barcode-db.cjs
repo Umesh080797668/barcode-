@@ -1058,10 +1058,21 @@ class BarcodeDB {
     await this._ensureInvoiceTables();
     const term = String(query || '').trim();
     if (!term) return [];
+    const needle = `%${term}%`;
     const stmt = this.db.prepare(
-      'SELECT * FROM invoices WHERE customer_name LIKE ? COLLATE NOCASE ORDER BY created_at DESC LIMIT ?'
+      `SELECT i.*
+       FROM invoices i
+       WHERE i.customer_name LIKE ? COLLATE NOCASE
+          OR EXISTS (
+            SELECT 1
+            FROM invoice_items ii
+            WHERE ii.invoice_id = i.id
+              AND ii.name LIKE ? COLLATE NOCASE
+          )
+       ORDER BY i.created_at DESC
+       LIMIT ?`
     );
-    stmt.bind([`%${term}%`, limit]);
+    stmt.bind([needle, needle, limit]);
     const results = [];
     while (stmt.step()) results.push(stmt.getAsObject());
     stmt.free();
